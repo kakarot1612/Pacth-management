@@ -1,0 +1,82 @@
+{
+  "description": "Registry of WSUS patch approvals by computer target group to prevent duplicate push and support unapprove",
+  "approvals": {
+    "KB5122876_BPVN-Server": {
+      "kb": "KB5122876",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push / Routine Patch Cycle"
+    },
+    "KB5123099_BPVN-Server": {
+      "kb": "KB5123099",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push / Routine Patch Cycle"
+    },
+    "KB5122877_BPVN-Server": {
+      "kb": "KB5122877",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push / Routine Patch Cycle"
+    },
+    "KB5122878_BPVN-Server": {
+      "kb": "KB5122878",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push / Routine Patch Cycle"
+    },
+    "KB5040436_BPVN-Server": {
+      "kb": "KB5040436",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push"
+    },
+    "KB5039219_BPVN-Server": {
+      "kb": "KB5039219",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push"
+    },
+    "KB5034767_BPVN-Server": {
+      "kb": "KB5034767",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push"
+    },
+    "KB5029244_BPVN-Server": {
+      "kb": "KB5029244",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push"
+    },
+    "KB5040437_BPVN-Server": {
+      "kb": "KB5040437",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push"
+    },
+    "KB5126868_BPVN-Server": {
+      "kb": "KB5126868",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push / 2026-10 Cumulative Update"
+    },
+    "KB5126649_BPVN-Server": {
+      "kb": "KB5126649",
+      "group": "BPVN-Server",
+      "status": "APPROVED",
+      "approved_at": "2026-10-21 08:30:00",
+      "source": "WSUS Push / 2026-10 Servicing Stack Update"
+    }
+  }
+}

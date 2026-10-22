@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "description": "Vulnerability Exception Registry as defined in docs/vulnerability-management.md",
+  "exceptions": [
+    {
+      "cve": "CVE-2023-EXAMPLE",
+      "server": "LEGACY-APP01",
+      "reason": "Legacy application vendor does not support monthly cumulative update past KB5020000; software incompatibility.",
+      "compensating_control": "Isolated in separate VLAN; incoming traffic restricted to jumpbox IP via Windows Firewall; Wazuh FIM monitored.",
+      "owner": "AppOps Team",
+      "approved_by": "SecOps Manager",
+      "approval_date": "2026-09-01",
+      "expiration_date": "2026-12-31",
+      "status": "APPROVED"
+    }
+  ]
+}

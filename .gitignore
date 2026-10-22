@@ -1,0 +1,41 @@
+# ==============================================================================
+# Git Ignore - Best Pacific Vulnerability & Patch Management Toolkit
+# ==============================================================================
+
+# Environment & Secrets (NEVER COMMIT SENSITIVE CONFIG)
+.env
+.env.*
+!.env.example
+*.env.local
+*.pem
+*.key
+*.pfx
+*.cert
+secrets/
+
+# Python cache & build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+venv/
+.venv/
+env/
+dist/
+build/
+*.egg-info/
+
+# Generated audit reports & system runtime logs
+reports/*
+!reports/.gitkeep
+logs/*
+!logs/.gitkeep
+*.log
+
+# IDE, OS & temporary files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp

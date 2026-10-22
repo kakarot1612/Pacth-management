@@ -1,0 +1,27 @@
+{
+  "006": {
+    "agent_name": "BPVN-HYPERV04",
+    "reboot_pending": false,
+    "reboot_reasons": ""
+  },
+  "028": {
+    "agent_name": "BPVN-BPTERP",
+    "reboot_pending": true,
+    "reboot_reasons": "Đã cài đặt bản vá KB5123099 - Kernel Build hiện tại (14393.9234) chưa đạt 14393.9512 - Chờ Restart máy"
+  },
+  "008": {
+    "agent_name": "BPVN-HYPERV02",
+    "reboot_pending": false,
+    "reboot_reasons": ""
+  },
+  "009": {
+    "agent_name": "BPVN-HYPERV01",
+    "reboot_pending": false,
+    "reboot_reasons": ""
+  },
+  "001": {
+    "agent_name": "BPVN-HYPERV03",
+    "reboot_pending": false,
+    "reboot_reasons": ""
+  }
+}

@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Quản lý Vulnerability & Patch Management</title>
+    <link rel="stylesheet" href="/css/style.css?v=apple_hig_v1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="app-header">
+        <div class="header-left">
+            <div class="brand-logo">
+                <span class="logo-shield">🛡️</span>
+                <div>
+                    <h1>Patch & Vulnerability Management</h1>
+                    <span class="brand-sub">Wazuh Detection • WSUS Distribution • Active Directory GPO</span>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="scheduler-status-pill" id="schedulerStatusPill" style="display:flex;align-items:center;gap:6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);padding:6px 12px;border-radius:20px;font-size:12px;color:#93c5fd;" title="Hệ thống tự động quét Wazuh liên tục theo lịch">
+                <span>⏰</span>
+                <span id="schedulerText">Quét nền: Mỗi 30 phút</span>
+            </div>
+            <div class="system-status-indicator" id="systemStatusBadge">
+                <span class="status-dot green"></span>
+                <span id="systemStatusText">Sẵn sàng vận hành</span>
+            </div>
+            <button class="btn btn-outline" id="btnOpenAuditLogs" onclick="openAuditLogsModal()" title="Xem nhật ký kiểm toán và dấu vết thao tác hệ thống">
+                <span class="icon">📜</span> Nhật Ký Audit
+            </button>
+            <button class="btn btn-outline" id="btnOpenAuditReport" onclick="openAuditReportModal()" title="Trung tâm báo cáo và xuất tài liệu kiểm toán">
+                <span class="icon">📑</span> Báo Cáo Kiểm Toán
+            </button>
+            <!-- Direct Export Menu Button -->
+            <div style="position:relative;display:inline-block;">
+                <button class="btn btn-primary" id="btnExportMenu" onclick="toggleExportMenu(event)" style="background:var(--apple-green);border-color:var(--apple-green);box-shadow:0 2px 8px rgba(52,199,89,0.3);" title="Tải xuống nhanh các báo cáo kiểm toán">
+                    <span class="icon">📥</span> Xuất Báo Cáo ▼
+                </button>
+                <div id="exportDropdownMenu" style="display:none;position:absolute;right:0;top:100%;margin-top:8px;background:#ffffff;border:1px solid rgba(0,0,0,0.08);border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,0.12);min-width:280px;z-index:1050;padding:6px 0;overflow:hidden;">
+                    <a href="/api/export-audit-csv" target="_blank" style="display:flex;align-items:center;gap:12px;padding:12px 18px;color:#1d1d1f;text-decoration:none;font-size:13px;border-bottom:1px solid #f0f0f2;transition:background 0.15s ease;" onmouseover="this.style.background='#f5f5f7'" onmouseout="this.style.background='transparent'">
+                        <span style="font-size:20px;">📊</span>
+                        <div>
+                            <div style="font-weight:600;color:#1d1d1f;">1. Ma Trận Máy Chủ (CSV)</div>
+                            <div style="font-size:11px;color:#86868b;">19 Servers • Excel UTF-8 BOM</div>
+                        </div>
+                    </a>
+                    <a href="/api/export-vulns-csv" target="_blank" style="display:flex;align-items:center;gap:12px;padding:12px 18px;color:#1d1d1f;text-decoration:none;font-size:13px;border-bottom:1px solid #f0f0f2;transition:background 0.15s ease;" onmouseover="this.style.background='#f5f5f7'" onmouseout="this.style.background='transparent'">
+                        <span style="font-size:20px;">📋</span>
+                        <div>
+                            <div style="font-weight:600;color:#1d1d1f;">2. Chi Tiết CVE & Rule #4 (CSV)</div>
+                            <div style="font-size:11px;color:#86868b;">Bằng chứng OS Build • Excel BOM</div>
+                        </div>
+                    </a>
+                    <a href="/api/audit-report-html" target="_blank" style="display:flex;align-items:center;gap:12px;padding:12px 18px;color:#0071e3;text-decoration:none;font-size:13px;transition:background 0.15s ease;" onmouseover="this.style.background='#f5f5f7'" onmouseout="this.style.background='transparent'">
+                        <span style="font-size:20px;">🖨️</span>
+                        <div>
+                            <div style="font-weight:600;color:#0071e3;">3. Hồ Sơ In Chuẩn A4 / Lưu PDF</div>
+                            <div style="font-size:11px;color:#86868b;">Tài liệu kiểm toán có 3 chữ ký</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+            <button class="btn btn-secondary" id="btnRefresh" title="Tải lại dữ liệu">
+                <span class="icon">🔄</span> Làm mới
+            </button>
+            <button class="btn btn-primary" id="btnRunScan" title="Thực hiện quét và đối chiếu Rule #4">
+                <span class="icon">⚡</span> Quét & Đối chiếu Lỗ hổng
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="app-main">
+        <!-- Golden Rule Notice Banner -->
+        <div class="golden-rule-banner">
+            <div class="banner-icon">⚖️</div>
+            <div class="banner-content">
+                <strong>5 Nguyên tắc Vàng (Golden Rules):</strong>
+                <span>Wazuh là công cụ phát hiện & xác minh; WSUS phân phối bản vá độc quyền. Khi Wazuh báo <code>Active</code>, hệ thống tự động kiểm tra đối chiếu Hotfix & OS Build (Rule #4) để tránh kết luận sai lệch khi Agent chưa quét lại Syscollector. Lỗ hổng không có KB sẽ được AI Gemini tư vấn biện pháp giảm nhẹ.</span>
+            </div>
+        </div>
+
+        <!-- Audit & Compliance Quick Access Toolbar -->
+        <div class="audit-toolbar-card">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:24px;display:flex;align-items:center;justify-content:center;width:40px;height:40px;background:#eef5ff;border-radius:10px;">🛡️</span>
+                <div>
+                    <strong style="color:var(--text-primary);font-size:14px;font-weight:600;display:block;">Trung Tâm Dữ Liệu Kiểm Toán (Audit & Compliance Center)</strong>
+                    <span style="font-size:12px;color:var(--text-tertiary);">Phục vụ thanh tra ISO 27001 (A.8.8) & CIS Controls v8. Dữ liệu đối chiếu thực tế theo chu kỳ.</span>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-sm btn-outline" onclick="openAuditLogsModal()">
+                    📜 Mở Nhật Ký Dấu Vết
+                </button>
+                <button class="btn btn-sm btn-outline" onclick="openAuditReportModal()">
+                    📑 Xem Form Báo Cáo
+                </button>
+                <a href="/api/export-audit-csv" target="_blank" class="btn btn-sm btn-outline" style="text-decoration:none;color:var(--apple-blue);" title="Tải file Excel tổng hợp 19 máy chủ">
+                    📊 Tải CSV Máy Chủ (Excel)
+                </a>
+                <a href="/api/export-vulns-csv" target="_blank" class="btn btn-sm btn-outline" style="text-decoration:none;color:var(--apple-green-text);" title="Tải file Excel chi tiết lỗ hổng và căn cứ Rule #4">
+                    📋 Tải CSV Lỗ Hổng & Rule #4 (Excel)
+                </a>
+                <a href="/api/audit-report-html" target="_blank" class="btn btn-sm btn-primary" style="text-decoration:none;" title="Mở trang in A4 chính thức hoặc lưu file PDF">
+                    🖨️ In / Lưu PDF Báo Cáo A4
+                </a>
+            </div>
+        </div>
+
+        <!-- Metric KPI Cards -->
+        <section class="kpi-section">
+            <div class="kpi-card" id="kpiComplianceCard">
+                <div class="kpi-header">
+                    <span class="kpi-label">Tỷ lệ Tuân thủ (Compliance)</span>
+                    <span class="kpi-target">Mục tiêu: ≥ 95%</span>
+                </div>
+                <div class="kpi-body">
+                    <span class="kpi-number" id="valComplianceRate">--%</span>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill" id="barCompliance"></div>
+                    </div>
+                </div>
+                <div class="kpi-footer" id="valComplianceStatus">Đang tính toán...</div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-header">
+                    <span class="kpi-label">Tuân thủ Critical (P1)</span>
+                    <span class="kpi-target">SLA: ≤ 72h</span>
+                </div>
+                <div class="kpi-body">
+                    <span class="kpi-number" id="valCriticalCompliance">--%</span>
+                    <div class="progress-bar-bg">
+                        <div class="progress-bar-fill green" id="barCriticalCompliance"></div>
+                    </div>
+                </div>
+                <div class="kpi-footer">Lỗ hổng khẩn cấp chưa vá: <strong id="valCriticalCount" class="text-danger">0</strong></div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-header">
+                    <span class="kpi-label">Đã Vá (Chờ Wazuh Rescan)</span>
+                    <span class="kpi-badge">Rule #4</span>
+                </div>
+                <div class="kpi-body">
+                    <span class="kpi-number text-warning" id="valPendingRescanCount">0</span>
+                </div>
+                <div class="kpi-footer">Hotfix đã cài trên máy, chờ chu kỳ quét</div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-header">
+                    <span class="kpi-label">Máy chủ Chờ Khởi động lại</span>
+                    <span class="kpi-badge badge-orange">Reboot Pending</span>
+                </div>
+                <div class="kpi-body">
+                    <span class="kpi-number text-orange" id="valRebootPendingCount">0</span>
+                </div>
+                <div class="kpi-footer">Mục tiêu máy chủ quan trọng: <strong>0</strong></div>
+            </div>
+        </section>
+
+        <!-- Two Columns Layout: Server Table & Detail Inspector -->
+        <div class="content-split">
+            <!-- Left Column: Servers Table -->
+            <div class="servers-container">
+                <div class="panel-header">
+                    <div class="panel-title-area">
+                        <h2>Danh sách Máy chủ & Trạng thái Vá lỗi</h2>
+                        <span class="server-count-tag" id="serverCountTag">0 máy chủ</span>
+                    </div>
+                    <div class="filter-controls">
+                        <input type="text" id="searchInput" class="search-box" placeholder="Tìm theo tên máy, IP, hoặc OS...">
+                        <select id="filterStatus" class="select-box">
+                            <option value="all">Tất cả trạng thái</option>
+                            <option value="clean">Đã sạch lỗ hổng</option>
+                            <option value="vulnerable">Cần vá (Vulnerable)</option>
+                            <option value="pending_rescan">Đã cài KB (Chờ Wazuh)</option>
+                            <option value="reboot_pending">Chờ Reboot</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="data-table" id="serversTable">
+                        <thead>
+                            <tr>
+                                <th>Tên Máy Chủ</th>
+                                <th>Hệ Điều Hành & Build</th>
+                                <th>Nhóm WSUS</th>
+                                <th>Hotfix Đã Cài</th>
+                                <th>Chưa Vá</th>
+                                <th>Chờ Rescan</th>
+                                <th>Reboot</th>
+                                <th>Trạng Thái</th>
+                                <th>Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="serversTableBody">
+                            <tr>
+                                <td colspan="9" class="empty-state">Đang tải dữ liệu máy chủ...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Right Column: Selected Server Inspector -->
+            <aside class="inspector-panel" id="inspectorPanel">
+                <div class="inspector-empty" id="inspectorEmpty">
+                    <div class="empty-icon">🖥️</div>
+                    <h3>Chưa chọn Máy chủ</h3>
+                    <p>Nhấp vào bất kỳ máy chủ nào ở bảng bên trái để xem danh sách lỗ hổng, mã KB tương ứng, hoặc nhận hướng dẫn khắc phục từ AI Gemini khi không có KB.</p>
+                </div>
+
+                <div class="inspector-content" id="inspectorContent" style="display: none;">
+                    <!-- Server Header -->
+                    <div class="inspector-server-header">
+                        <div class="srv-badge-title">
+                            <span class="srv-icon">🖥️</span>
+                            <div>
+                                <h3 id="insServerName">DC01.corp.local</h3>
+                                <div class="srv-sub-meta" id="insServerSub">Windows Server 2022 • Build 20348.2655</div>
+                            </div>
+                        </div>
+                        <button class="btn-close-inspector" id="btnCloseInspector">✕</button>
+                    </div>
+
+                    <!-- Server Quick Stats Bar -->
+                    <div class="srv-quick-stats">
+                        <div class="stat-pill">
+                            <span class="stat-label">Hotfixes</span>
+                            <strong id="insHotfixCount">0</strong>
+                        </div>
+                        <div class="stat-pill">
+                            <span class="stat-label">Chưa vá</span>
+                            <strong id="insVulnCount" class="text-danger">0</strong>
+                        </div>
+                        <div class="stat-pill">
+                            <span class="stat-label">Chờ Rescan</span>
+                            <strong id="insRescanCount" class="text-warning">0</strong>
+                        </div>
+                        <div class="stat-pill">
+                            <span class="stat-label">Reboot</span>
+                            <strong id="insRebootState">Không</strong>
+                        </div>
+                    </div>
+
+                    <!-- Pending Reboot Notice -->
+                    <div id="insRebootNotice" style="display:none;padding:12px 16px;margin:10px 0;background:#fff6e8;border:1px solid rgba(255,149,0,0.35);border-radius:12px;font-size:12.5px;color:#b35900;line-height:1.5;"></div>
+
+                    <!-- Server Hotfix Pills Summary -->
+                    <div class="ins-hotfix-box">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                            <span style="font-size:11px; text-transform:uppercase; color:var(--text-tertiary); font-weight:600; letter-spacing:0.04em;">Hotfix Đã Cài (Wazuh Syscollector)</span>
+                            <span id="insLcuBadge" style="font-size:11px; color:var(--apple-green-text); font-weight:600;"></span>
+                        </div>
+                        <div id="insHotfixPills" style="display:flex; flex-wrap:wrap; gap:5px; max-height:85px; overflow-y:auto;">
+                            <!-- Hotfix pills inserted here -->
+                        </div>
+                    </div>
+
+                    <!-- Inspector Action Toolbar -->
+                    <div class="inspector-tools">
+                        <button class="btn btn-sm btn-outline" id="btnForceRescan" title="Gửi lệnh khởi động lại Wazuh Agent để quét lại Hotfix ngay">
+                            🔄 Ép Wazuh Quét Lại
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="btnCheckReboot" title="Kiểm tra trạng thái Reboot pending">
+                            🔍 Soát Reboot
+                        </button>
+                    </div>
+
+                    <!-- Vulnerabilities & KB Mapping List -->
+                    <div class="vuln-list-wrapper">
+                        <h4>Danh sách Lỗ hổng & Ánh xạ KB</h4>
+                        <div class="vuln-cards" id="vulnCardsContainer">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <!-- AI Remediation Modal (Gemini Guidance) -->
+    <div class="modal-overlay" id="aiModal" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span class="ai-sparkle">🤖</span>
+                    <div>
+                        <h3 id="aiModalTitle">AI Gemini - Hướng dẫn Khắc phục Lỗ hổng</h3>
+                        <span class="ai-source-tag" id="aiModalSource">Google Gemini Security Intelligence</span>
+                    </div>
+                </div>
+                <button class="modal-close" id="btnCloseAiModal">✕</button>
+            </div>
+            <div class="modal-body" id="aiModalBody">
+                <div class="ai-loading" id="aiModalLoading">
+                    <div class="spinner"></div>
+                    <p>AI Gemini đang phân tích bề mặt tấn công, rà soát lỗ hổng và tạo kịch bản khắc phục chuyên sâu...</p>
+                </div>
+                <div class="ai-content-markdown" id="aiModalText" style="display: none;">
+                    <!-- Rendered Markdown -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCopyAiScript">📋 Sao chép Lệnh PowerShell</button>
+                <button class="btn btn-primary" id="btnCreateExceptionFromAi">📝 Đăng ký Ngoại lệ (Exception)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Logs Modal -->
+    <div class="modal-overlay" id="auditLogsModal" style="display: none;">
+        <div class="modal-container modal-container-lg">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span style="font-size:24px;">📜</span>
+                    <div>
+                        <h3 style="margin:0;font-size:16px;">Nhật Ký Kiểm Toán & Dấu Vết Vận Hành (Audit Trail)</h3>
+                        <span style="font-size:11px;color:#94a3b8;">Lưu trữ vết mọi hoạt động: Quét lỗ hổng, Rule #4, Phê duyệt WSUS, Reboot máy chủ</span>
+                    </div>
+                </div>
+                <button class="modal-close" id="btnCloseAuditLogsModal" onclick="closeAuditLogsModal()">✕</button>
+            </div>
+            <div class="modal-body" style="padding:16px 20px;">
+                <!-- Filter Bar -->
+                <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+                    <div style="flex:1;min-width:200px;">
+                        <input type="text" id="auditLogSearch" class="search-input" placeholder="🔍 Tìm kiếm sự kiện, máy chủ, KB, CVE..." style="width:100%;box-sizing:border-box;">
+                    </div>
+                    <select id="auditLogActionFilter" class="filter-select" style="min-width:180px;">
+                        <option value="ALL">Tất cả loại sự kiện</option>
+                        <option value="SCAN_CYCLE">Chu kỳ quét (SCAN_CYCLE)</option>
+                        <option value="AGENT_RESCAN">Quét lại Agent (AGENT_RESCAN)</option>
+                        <option value="WSUS_APPROVE">Phê duyệt WSUS (WSUS_APPROVE)</option>
+                        <option value="WSUS_UNAPPROVE">Hủy duyệt WSUS (WSUS_UNAPPROVE)</option>
+                        <option value="REBOOT_FLAG_CHANGE">Thay đổi cờ Reboot</option>
+                        <option value="RULE4_VERIFICATION">Đối chiếu Rule #4</option>
+                        <option value="EXPORT_REPORT">Xuất báo cáo kiểm toán</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline" id="btnRefreshAuditLogs">🔄 Tải lại</button>
+                </div>
+
+                <!-- Log Table Container -->
+                <div style="max-height:480px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">
+                    <table class="audit-table">
+                        <thead>
+                            <tr>
+                                <th style="width:140px;">Thời Gian</th>
+                                <th style="width:140px;">Hành Động</th>
+                                <th style="width:150px;">Máy Chủ / Mục Tiêu</th>
+                                <th>Chi Tiết Kiểm Toán</th>
+                                <th style="width:110px;">Nguồn</th>
+                                <th style="width:80px;text-align:center;">Trạng Thái</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditLogsTbody">
+                            <!-- Injected dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;">
+                <span id="auditLogCount" style="font-size:12px;color:#94a3b8;">Đang tải nhật ký...</span>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-outline" onclick="window.open('/api/audit-logs?limit=500', '_blank')">📥 Xuất JSON</button>
+                    <button class="btn btn-primary" id="btnCloseAuditLogsModalBottom" onclick="closeAuditLogsModal()">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit Reports & Compliance Center Modal -->
+    <div class="modal-overlay" id="auditReportModal" style="display: none;">
+        <div class="modal-container modal-container-lg">
+            <div class="modal-header">
+                <div class="modal-title-wrap">
+                    <span style="font-size:24px;">📑</span>
+                    <div>
+                        <h3 style="margin:0;font-size:16px;">Trung Tâm Báo Cáo Kiểm Toán (Compliance & Audit Center)</h3>
+                        <span style="font-size:11px;color:#94a3b8;">Hồ sơ xuất tài liệu phục vụ thanh tra, kiểm toán nội bộ & đối ngoại (ISO 27001 / CIS Controls)</span>
+                    </div>
+                </div>
+                <button class="modal-close" id="btnCloseAuditReportModal" onclick="closeAuditReportModal()">✕</button>
+            </div>
+            <div class="modal-body" style="padding:20px;">
+                <!-- Standards Banner -->
+                <div style="background:var(--apple-blue-subtle);border:1px solid var(--apple-blue-border);border-radius:14px;padding:14px 18px;margin-bottom:22px;display:flex;align-items:center;gap:14px;">
+                    <span style="font-size:28px;">🛡️</span>
+                    <div>
+                        <div style="font-weight:700;color:var(--apple-blue);font-size:13.5px;">Tiêu chuẩn Kiểm toán Tuân thủ: ISO/IEC 27001:2022 (A.8.8) & CIS Controls v8 (Measure 7)</div>
+                        <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">
+                            Báo cáo cung cấp bằng chứng đối chiếu kỹ thuật giữa lỗ hổng Wazuh và bản vá thực tế từ WSUS / Syscollector Kernel Build.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Export Cards Grid -->
+                <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:16px;margin-bottom:22px;">
+                    <!-- Card 1: Server Matrix CSV -->
+                    <div style="background:#ffffff;border:1px solid var(--divider);border-radius:14px;padding:20px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--shadow-sm);">
+                        <div>
+                            <div style="font-size:28px;margin-bottom:10px;">📊</div>
+                            <h4 style="margin:0 0 6px 0;font-size:15px;color:var(--text-primary);font-weight:600;">Ma Trận Máy Chủ (Excel CSV)</h4>
+                            <p style="font-size:12px;color:var(--text-secondary);margin:0 0 16px 0;line-height:1.5;">
+                                Bảng tổng hợp 19 máy chủ: IP, Kernel Build, số KB đã cài, lỗ hổng chưa vá, trạng thái WSUS và cờ Reboot.
+                            </p>
+                        </div>
+                        <a href="/api/export-audit-csv" target="_blank" class="btn btn-outline" style="text-align:center;text-decoration:none;display:block;">
+                            📥 Tải File CSV Máy Chủ
+                        </a>
+                    </div>
+
+                    <!-- Card 2: Vulnerability Details CSV -->
+                    <div style="background:#ffffff;border:1px solid var(--divider);border-radius:14px;padding:20px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--shadow-sm);">
+                        <div>
+                            <div style="font-size:28px;margin-bottom:10px;">📋</div>
+                            <h4 style="margin:0 0 6px 0;font-size:15px;color:var(--text-primary);font-weight:600;">Chi Tiết Lỗ Hổng & Rule #4 (CSV)</h4>
+                            <p style="font-size:12px;color:var(--text-secondary);margin:0 0 16px 0;line-height:1.5;">
+                                Danh sách từng CVE: Điểm CVSS, bản vá KB, bằng chứng đối chiếu OS Build và lý do loại trừ false positive.
+                            </p>
+                        </div>
+                        <a href="/api/export-vulns-csv" target="_blank" class="btn btn-outline" style="text-align:center;text-decoration:none;display:block;">
+                            📥 Tải File CSV Lỗ Hổng
+                        </a>
+                    </div>
+
+                    <!-- Card 3: Formal Printable HTML/PDF -->
+                    <div style="background:linear-gradient(145deg, #ffffff, #f0f6fe);border:1px solid rgba(0,113,227,0.3);border-radius:14px;padding:20px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--shadow-sm);">
+                        <div>
+                            <div style="font-size:28px;margin-bottom:10px;">🖨️</div>
+                            <h4 style="margin:0 0 6px 0;font-size:15px;color:var(--apple-blue);font-weight:600;">Hồ Sơ In / Xuất PDF Chính Thức</h4>
+                            <p style="font-size:12px;color:var(--text-secondary);margin:0 0 16px 0;line-height:1.5;">
+                                Tài liệu kiểm toán chuẩn A4: Tiêu đề công ty Best Pacific, bảng KPI, ma trận tuân thủ và 3 khối ký duyệt ban giám đốc.
+                            </p>
+                        </div>
+                        <a href="/api/audit-report-html" target="_blank" class="btn btn-primary" style="text-align:center;text-decoration:none;display:block;">
+                            📄 Mở Hồ Sơ In / Lưu PDF
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Current Snapshot Preview -->
+                <div style="background:var(--bg-surface-secondary);border:1px solid var(--divider);border-radius:14px;padding:16px 20px;">
+                    <div style="font-size:11px;font-weight:600;color:var(--text-tertiary);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.04em;">Tóm tắt trạng thái kiểm toán hiện thời:</div>
+                    <div style="display:flex;gap:28px;flex-wrap:wrap;font-size:13.5px;">
+                        <div>Tổng máy chủ kiểm toán: <strong id="auditModalTotalServers" style="color:var(--text-primary);font-weight:700;">19</strong></div>
+                        <div>Tỷ lệ tuân thủ: <strong id="auditModalCompliance" style="color:var(--apple-green-text);font-weight:700;">65.32%</strong></div>
+                        <div>Lỗ hổng đã chứng minh vá (Rule #4): <strong id="auditModalRemediated" style="color:var(--apple-green-text);font-weight:700;">243</strong></div>
+                        <div>Máy chủ chờ Reboot: <strong id="auditModalReboot" style="color:var(--apple-orange-text);font-weight:700;">0</strong></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCloseAuditReportModalBottom" onclick="closeAuditReportModal()">Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/js/app.js?v=apple_hig_v2"></script>
+    <script>
+        // Guaranteed Modal & Export Triggers
+        function toggleExportMenu(e) {
+            if (e) e.stopPropagation();
+            const menu = document.getElementById("exportDropdownMenu");
+            if (menu) {
+                menu.style.display = (menu.style.display === "block") ? "none" : "block";
+            }
+        }
+        document.addEventListener("click", () => {
+            const menu = document.getElementById("exportDropdownMenu");
+            if (menu) menu.style.display = "none";
+        });
+
+        function openAuditLogsModal() {
+            const m = document.getElementById("auditLogsModal");
+            if (m) m.style.display = "flex";
+            if (typeof loadAuditLogs === "function") {
+                loadAuditLogs();
+            } else {
+                fetchAuditLogsFallback();
+            }
+        }
+        function closeAuditLogsModal() {
+            const m = document.getElementById("auditLogsModal");
+            if (m) m.style.display = "none";
+        }
+        function openAuditReportModal() {
+            const m = document.getElementById("auditReportModal");
+            if (m) m.style.display = "flex";
+            if (typeof updateAuditReportSnapshot === "function") {
+                updateAuditReportSnapshot();
+            }
+        }
+        function closeAuditReportModal() {
+            const m = document.getElementById("auditReportModal");
+            if (m) m.style.display = "none";
+        }
+        async function fetchAuditLogsFallback() {
+            const tbody = document.getElementById("auditLogsTbody");
+            if (!tbody) return;
+            try {
+                const r = await fetch("/api/audit-logs?limit=100");
+                const d = await r.json();
+                if (d.logs && d.logs.length) {
+                    tbody.innerHTML = d.logs.map(l => `
+                        <tr>
+                            <td style="font-family:monospace;font-size:11px;color:#94a3b8;white-space:nowrap;">${(l.timestamp||'').replace('T',' ').substring(0,19)}</td>
+                            <td><span class="badge" style="background:rgba(255,255,255,0.06);color:#38bdf8;font-weight:600;font-size:11px;">${l.action||'-'}</span></td>
+                            <td style="font-weight:600;font-size:12px;color:#e2e8f0;">${l.target||'-'}</td>
+                            <td style="font-size:12px;color:#cbd5e1;line-height:1.4;">${l.details||'-'}</td>
+                            <td style="font-size:11px;color:#94a3b8;">${l.source||'System'}</td>
+                            <td style="text-align:center;"><span class="badge" style="background:rgba(16,185,129,0.15);color:#10b981;font-size:11px;">${l.status||'SUCCESS'}</span></td>
+                        </tr>
+                    `).join('');
+                }
+            } catch(e){}
+        }
+    </script>
+</body>
+</html>

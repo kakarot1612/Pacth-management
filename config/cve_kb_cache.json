@@ -1,0 +1,322 @@
+{
+  "description": "Offline cache and curated mappings for CVE to Microsoft KB and Minimum Fixed OS Build",
+  "mappings": {
+    "CVE-2026-20940": {
+      "title": "Windows Cloud Files Mini Filter Driver Heap-based Buffer Overflow Vulnerability",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20924": {
+      "title": "Windows Management Services Use-After-Free Remote Code Execution Vulnerability",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20919": {
+      "title": "Windows Concurrent Execution Race Condition EoP Vulnerability",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20921": {
+      "title": "Windows Kernel Shared Resource Synchronization Elevation of Privilege",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20918": {
+      "title": "Windows Core Synchronization Concurrency Elevation of Privilege",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20926": {
+      "title": "Windows Kernel Resource Improper Synchronization Vulnerability",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20877": {
+      "title": "Windows Management Services UAF Memory Corruption Vulnerability",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20929": {
+      "title": "Windows HTTP.sys Improper Access Control Security Feature Bypass",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20875": {
+      "title": "Windows Local Security Authority Subsystem Service (LSASS) Null Pointer Dereference DoS",
+      "severity": "High",
+      "cvss": 7.5,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20873": {
+      "title": "Windows Synchronization Manager Concurrency Vulnerability",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20869": {
+      "title": "Windows Kernel Concurrency Race Condition Elevation of Privilege",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20868": {
+      "title": "Windows Routing and Remote Access Service (RRAS) Heap Overflow RCE",
+      "severity": "High",
+      "cvss": 8.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20867": {
+      "title": "Windows Shared Memory Synchronization Elevation of Privilege",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2026-20864": {
+      "title": "Windows Connected Devices Platform Service Heap Overflow Vulnerability",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {
+        "Windows Server 2019": "KB5122876",
+        "Windows Server 2022": "KB5122877",
+        "Windows Server 2016": "KB5126868",
+        "Windows Server 2025": "KB5122878"
+      },
+      "build_map": {
+        "Windows Server 2019": "17763.9245",
+        "Windows Server 2022": "20348.5622",
+        "Windows Server 2016": "14393.9512",
+        "Windows Server 2025": "26100.32860"
+      }
+    },
+    "CVE-2024-38077": {
+      "title": "Windows Remote Desktop Licensing Service Remote Code Execution Vulnerability (MadLicence)",
+      "severity": "Critical",
+      "cvss": 9.8,
+      "kb_map": {
+        "Windows Server 2022": "KB5040437",
+        "Windows Server 2019": "KB5040430",
+        "Windows Server 2016": "KB5040436",
+        "Windows 11": "KB5040442",
+        "Windows 10": "KB5040427"
+      },
+      "build_map": {
+        "Windows Server 2022": "20348.2582",
+        "Windows Server 2019": "17763.6054",
+        "Windows Server 2016": "14393.7159"
+      }
+    },
+    "CVE-2024-30078": {
+      "title": "Windows Wi-Fi / Network Driver Remote Code Execution Vulnerability",
+      "severity": "High",
+      "cvss": 8.8,
+      "kb_map": {
+        "Windows Server 2022": "KB5039227",
+        "Windows Server 2019": "KB5039217",
+        "Windows Server 2016": "KB5039219",
+        "Windows 11": "KB5039212"
+      },
+      "build_map": {
+        "Windows Server 2022": "20348.2527",
+        "Windows Server 2019": "17763.5936",
+        "Windows Server 2016": "14393.7070"
+      }
+    },
+    "CVE-2024-21338": {
+      "title": "Windows Kernel Elevation of Privilege Vulnerability (CISA KEV Exploited)",
+      "severity": "High",
+      "cvss": 7.8,
+      "cisa_kev": true,
+      "kb_map": {
+        "Windows Server 2022": "KB5034770",
+        "Windows Server 2019": "KB5034768",
+        "Windows Server 2016": "KB5034767"
+      },
+      "build_map": {
+        "Windows Server 2022": "20348.2322",
+        "Windows Server 2019": "17763.5458",
+        "Windows Server 2016": "14393.6704"
+      }
+    },
+    "CVE-2023-36884": {
+      "title": "Windows Search Remote Code Execution & Office Defense Bypass Vulnerability",
+      "severity": "High",
+      "cvss": 8.3,
+      "cisa_kev": true,
+      "kb_map": {
+        "Windows Server 2022": "KB5029247",
+        "Windows Server 2019": "KB5029242",
+        "Windows Server 2016": "KB5029244"
+      },
+      "build_map": {
+        "Windows Server 2022": "20348.1906",
+        "Windows Server 2019": "17763.4737",
+        "Windows Server 2016": "14393.6167"
+      }
+    },
+    "CVE-2023-38831": {
+      "title": "WinRAR / File Archiver Remote Code Execution (Zero-day / Non-KB Application)",
+      "severity": "High",
+      "cvss": 7.8,
+      "kb_map": {},
+      "build_map": {}
+    },
+    "CVE-2024-21413": {
+      "title": "Microsoft Moniker Link Remote Code Execution Vulnerability (No direct OS Cumulative KB - App Level)",
+      "severity": "Critical",
+      "cvss": 9.8,
+      "kb_map": {},
+      "build_map": {}
+    }
+  }
+}

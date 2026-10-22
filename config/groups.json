@@ -1,0 +1,12 @@
+{
+  "groups": [
+    {
+      "id": "BPVN-Server",
+      "name": "BPVN-Server",
+      "phase": "IT Validation",
+      "description": "Máy chủ vật lý, Node Hyper-V",
+      "auto_approve_test": false,
+      "require_reboot_window": true
+    }
+  ]
+}

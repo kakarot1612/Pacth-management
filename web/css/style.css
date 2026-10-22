@@ -1,0 +1,1084 @@
+/* ==========================================================================
+   Apple Inc Human Interface Design System - Best Pacific Patch Management
+   Aesthetics: Clean, Bright, Translucent Frosted Glass, SF Pro Typography,
+   Soft Diffused Shadows & Smooth Dynamic Micro-interactions
+   ========================================================================== */
+
+:root {
+    /* Apple Clean Canvas & Surfaces */
+    --bg-canvas: #f5f5f7;
+    --bg-surface: #ffffff;
+    --bg-surface-secondary: #fbfbfd;
+    --bg-surface-tertiary: #f2f2f7;
+    --bg-subtle-hover: #f7f7f9;
+    --bg-active-row: #eef5ff;
+
+    /* Apple Frosted Glass / Translucency */
+    --header-bg: rgba(255, 255, 255, 0.82);
+    --modal-backdrop: rgba(0, 0, 0, 0.32);
+    --border-subtle: rgba(0, 0, 0, 0.07);
+    --border-medium: #d2d2d7;
+    --border-strong: #86868b;
+    --divider: #e5e5ea;
+
+    /* Apple Signature Accent Colors */
+    --apple-blue: #0071e3;
+    --apple-blue-hover: #0077ed;
+    --apple-blue-subtle: #edf5fe;
+    --apple-blue-border: rgba(0, 113, 227, 0.25);
+
+    --apple-green: #34c759;
+    --apple-green-hover: #30b753;
+    --apple-green-subtle: #eaf8ee;
+    --apple-green-text: #1d7b34;
+    --apple-green-border: rgba(52, 199, 89, 0.3);
+
+    --apple-orange: #ff9500;
+    --apple-orange-hover: #f08c00;
+    --apple-orange-subtle: #fff6e8;
+    --apple-orange-text: #b35900;
+    --apple-orange-border: rgba(255, 149, 0, 0.3);
+
+    --apple-red: #ff3b30;
+    --apple-red-hover: #e03228;
+    --apple-red-subtle: #ffebeb;
+    --apple-red-text: #c91b12;
+    --apple-red-border: rgba(255, 59, 48, 0.28);
+
+    --apple-purple: #af52de;
+    --apple-purple-subtle: #f8effc;
+    --apple-purple-text: #7b29a8;
+
+    --apple-indigo: #5856d6;
+    --apple-cyan: #32ade6;
+
+    /* Typography Colors (High Contrast, Human Legibility) */
+    --text-primary: #1d1d1f;
+    --text-secondary: #515154;
+    --text-tertiary: #86868b;
+    --text-quaternary: #aeaeb2;
+
+    /* Font Hierarchy (SF Pro System Font) */
+    --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", "Inter", sans-serif;
+    --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+    /* Apple Signature Shadows & Elevation */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.02);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+    --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.06), 0 16px 36px rgba(0, 0, 0, 0.08);
+    --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.16), 0 8px 24px rgba(0, 0, 0, 0.08);
+    --shadow-button-primary: 0 2px 8px rgba(0, 113, 227, 0.25);
+
+    /* Apple Continuous Curves (Squircles) */
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-pill: 980px;
+
+    /* Transitions */
+    --spring-transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ==========================================================================
+   Base & Resets
+   ========================================================================== */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    line-height: 1.47059;
+    font-weight: 400;
+    letter-spacing: -0.012em;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ==========================================================================
+   Header: macOS Glassmorphic Toolbar
+   ========================================================================== */
+.app-header {
+    background-color: var(--header-bg);
+    backdrop-filter: saturate(180%) blur(24px);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 14px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+}
+
+.brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.logo-shield {
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(145deg, #ffffff, #f0f4fc);
+    box-shadow: var(--shadow-sm);
+    border: 1px solid rgba(0, 113, 227, 0.15);
+}
+
+.brand-logo h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.024em;
+    color: var(--text-primary);
+    line-height: 1.25;
+}
+
+.brand-sub {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    font-weight: 400;
+    display: block;
+    margin-top: 1px;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.scheduler-status-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: var(--apple-blue-subtle) !important;
+    border: 1px solid var(--apple-blue-border) !important;
+    padding: 6px 14px !important;
+    border-radius: var(--radius-pill) !important;
+    font-size: 12px !important;
+    font-weight: 500;
+    color: var(--apple-blue) !important;
+}
+
+.system-status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--apple-green-subtle);
+    border: 1px solid var(--apple-green-border);
+    padding: 6px 14px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--apple-green-text);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+.status-dot.green {
+    background-color: var(--apple-green);
+    box-shadow: 0 0 0 2px rgba(52, 199, 89, 0.2);
+}
+
+/* ==========================================================================
+   Buttons (Apple Human Interface Guidelines)
+   ========================================================================== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius-pill);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: var(--spring-transition);
+    font-family: var(--font-sans);
+    line-height: 1.3;
+    user-select: none;
+    text-decoration: none;
+}
+
+.btn:active {
+    transform: scale(0.97);
+}
+
+.btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.btn-primary {
+    background: var(--apple-blue);
+    color: #ffffff;
+    box-shadow: var(--shadow-button-primary);
+    border-color: rgba(0, 113, 227, 0.8);
+}
+.btn-primary:hover {
+    background: var(--apple-blue-hover);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.35);
+}
+
+.btn-secondary {
+    background: var(--bg-surface-tertiary);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+}
+.btn-secondary:hover {
+    background: #e5e5ea;
+    color: var(--text-primary);
+}
+
+.btn-outline {
+    background: #ffffff;
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+}
+.btn-outline:hover {
+    background: var(--bg-surface-secondary);
+    border-color: var(--apple-blue);
+    color: var(--apple-blue);
+}
+
+.btn-sm {
+    padding: 5px 12px;
+    font-size: 12px;
+    border-radius: var(--radius-pill);
+}
+
+.btn-ai {
+    background: linear-gradient(135deg, #7c3aed 0%, #a855f7 100%);
+    color: #ffffff;
+    box-shadow: 0 2px 10px rgba(168, 85, 247, 0.3);
+    border-color: rgba(168, 85, 247, 0.3);
+}
+.btn-ai:hover {
+    background: linear-gradient(135deg, #6d28d9 0%, #9333ea 100%);
+    box-shadow: 0 4px 14px rgba(168, 85, 247, 0.4);
+}
+
+/* ==========================================================================
+   Main Layout & Sections
+   ========================================================================== */
+.app-main {
+    padding: 24px 32px 48px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 1720px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* Golden Rule Banner */
+.golden-rule-banner {
+    background: #f0f6fe;
+    border: 1px solid #d0e2fe;
+    border-left: 4px solid var(--apple-blue);
+    border-radius: var(--radius-md);
+    padding: 14px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    font-size: 13px;
+    color: #273746;
+    box-shadow: var(--shadow-sm);
+}
+.banner-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+.banner-content strong {
+    color: #0b3266;
+    font-weight: 600;
+}
+.banner-content code {
+    background: rgba(0, 113, 227, 0.1);
+    color: var(--apple-blue);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+/* Audit Center Quick Toolbar */
+.audit-toolbar-card {
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 14px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    box-shadow: var(--shadow-card);
+}
+
+/* ==========================================================================
+   KPI Cards (Apple Health / Watch / macOS Widget Aesthetic)
+   ========================================================================== */
+.kpi-section {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 18px;
+}
+
+.kpi-card {
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: var(--shadow-card);
+    transition: var(--spring-transition);
+}
+.kpi-card:hover {
+    box-shadow: var(--shadow-card-hover);
+    transform: translateY(-2px);
+    border-color: rgba(0, 113, 227, 0.2);
+}
+
+.kpi-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.kpi-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+.kpi-target {
+    font-size: 11px;
+    background: var(--bg-surface-tertiary);
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    color: var(--text-tertiary);
+    font-weight: 500;
+}
+.kpi-badge {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: var(--radius-pill);
+    background: var(--apple-orange-subtle);
+    color: var(--apple-orange-text);
+    font-weight: 600;
+}
+.badge-orange {
+    background: var(--apple-orange-subtle);
+    color: var(--apple-orange-text);
+}
+
+.kpi-number {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.1;
+    letter-spacing: -0.035em;
+    display: block;
+}
+
+.progress-bar-bg {
+    width: 100%;
+    height: 7px;
+    background: #e5e5ea;
+    border-radius: var(--radius-pill);
+    margin-top: 12px;
+    overflow: hidden;
+}
+.progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--apple-blue), var(--apple-green));
+    border-radius: var(--radius-pill);
+    width: 0%;
+    transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.progress-bar-fill.green {
+    background: var(--apple-green);
+}
+
+.kpi-footer {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 12px;
+    font-weight: 400;
+}
+
+/* ==========================================================================
+   Two-column Layout (Data Table & Detail Inspector)
+   ========================================================================== */
+.content-split {
+    display: grid;
+    grid-template-columns: 1fr 520px;
+    gap: 22px;
+    align-items: start;
+}
+
+/* Left Column: Servers Table Container */
+.servers-container {
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-card);
+}
+
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.panel-title-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.panel-title-area h2 {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+.server-count-tag {
+    background: var(--bg-surface-tertiary);
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.filter-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.search-box {
+    background: var(--bg-surface-secondary);
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary);
+    padding: 8px 14px;
+    border-radius: var(--radius-pill);
+    font-size: 13px;
+    width: 240px;
+    outline: none;
+    transition: var(--spring-transition);
+}
+.search-box:focus {
+    border-color: var(--apple-blue);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+.select-box {
+    background: var(--bg-surface-secondary);
+    border: 1px solid var(--border-medium);
+    color: var(--text-primary);
+    padding: 8px 14px;
+    border-radius: var(--radius-pill);
+    font-size: 13px;
+    outline: none;
+    cursor: pointer;
+    transition: var(--spring-transition);
+}
+.select-box:focus {
+    border-color: var(--apple-blue);
+    box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.15);
+}
+
+/* ==========================================================================
+   Data Table (macOS Numbers / Clean Minimalist Design)
+   ========================================================================== */
+.table-responsive {
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--divider);
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    background: #ffffff;
+}
+
+.data-table th {
+    background: #f5f5f7;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 12px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--divider);
+    white-space: nowrap;
+}
+
+.data-table td {
+    padding: 13px 14px;
+    text-align: left;
+    border-bottom: 1px solid var(--divider);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.data-table tbody tr {
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.data-table tbody tr:hover {
+    background: var(--bg-subtle-hover);
+}
+
+.data-table tbody tr.active-row {
+    background: var(--bg-active-row) !important;
+    border-left: 3px solid var(--apple-blue);
+}
+
+.empty-state {
+    text-align: center;
+    color: var(--text-tertiary);
+    padding: 48px !important;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Apple Badges & Pills (Pastel Tints with Crisp Text)
+   ========================================================================== */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.badge-clean {
+    background: var(--apple-green-subtle);
+    color: var(--apple-green-text);
+    border: 1px solid var(--apple-green-border);
+}
+
+.badge-vulnerable {
+    background: var(--apple-red-subtle);
+    color: var(--apple-red-text);
+    border: 1px solid var(--apple-red-border);
+}
+
+.badge-pending-rescan {
+    background: var(--apple-orange-subtle);
+    color: var(--apple-orange-text);
+    border: 1px solid var(--apple-orange-border);
+}
+
+.badge-reboot {
+    background: #fff4e5;
+    color: #c96600;
+    border: 1px solid rgba(255, 149, 0, 0.4);
+}
+
+/* ==========================================================================
+   Right Column: Inspector Panel (Floating Detail Sheet)
+   ========================================================================== */
+.inspector-panel {
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-card);
+    position: sticky;
+    top: 84px;
+    max-height: calc(100vh - 104px);
+    overflow-y: auto;
+}
+
+.inspector-empty {
+    text-align: center;
+    margin: auto;
+    padding: 60px 24px;
+    color: var(--text-tertiary);
+}
+.inspector-empty .empty-icon {
+    font-size: 54px;
+    margin-bottom: 14px;
+    opacity: 0.75;
+}
+.inspector-empty h3 {
+    font-size: 17px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+.inspector-empty p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+.inspector-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.inspector-server-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--divider);
+}
+.srv-badge-title {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.srv-icon {
+    font-size: 26px;
+    background: var(--bg-surface-tertiary);
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+}
+.srv-badge-title h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+.srv-sub-meta {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 2px;
+}
+
+.btn-close-inspector {
+    background: var(--bg-surface-tertiary);
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--spring-transition);
+}
+.btn-close-inspector:hover {
+    background: #e5e5ea;
+    color: var(--text-primary);
+}
+
+.srv-quick-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+.stat-pill {
+    background: var(--bg-surface-secondary);
+    border: 1px solid var(--border-subtle);
+    padding: 10px 8px;
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+.stat-label {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    display: block;
+    margin-bottom: 3px;
+    font-weight: 500;
+}
+.stat-pill strong {
+    font-size: 16px;
+    color: var(--text-primary);
+    font-weight: 700;
+}
+
+.inspector-tools {
+    display: flex;
+    gap: 10px;
+}
+
+/* Hotfix summary box */
+.ins-hotfix-box {
+    padding: 12px 16px;
+    background: var(--bg-surface-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--divider);
+}
+
+/* ==========================================================================
+   Vulnerability Cards (Clean Apple Cards)
+   ========================================================================== */
+.vuln-list-wrapper h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+}
+
+.vuln-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.vuln-card {
+    background: #ffffff;
+    border: 1px solid var(--divider);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: var(--shadow-sm);
+    transition: var(--spring-transition);
+}
+.vuln-card:hover {
+    border-color: rgba(0, 113, 227, 0.3);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05);
+}
+
+.vuln-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+.vuln-cve-id {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--apple-blue);
+    letter-spacing: -0.01em;
+}
+.vuln-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    line-height: 1.45;
+}
+
+.vuln-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+}
+
+.kb-badge {
+    background: var(--apple-blue-subtle);
+    color: var(--apple-blue);
+    border: 1px solid var(--apple-blue-border);
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.vuln-action-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--divider);
+    flex-wrap: wrap;
+}
+
+/* ==========================================================================
+   Modals (Apple macOS Sheet Design)
+   ========================================================================== */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--modal-backdrop);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    padding: 24px;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-container {
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-xl);
+    width: 760px;
+    max-width: 95%;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-modal);
+    z-index: 10000;
+    overflow: hidden;
+    animation: popUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes popUp {
+    from { transform: scale(0.96) translateY(12px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.modal-container-lg {
+    width: 1100px;
+    max-width: 96%;
+}
+
+.modal-header {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--divider);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-surface-secondary);
+}
+.modal-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.ai-sparkle { font-size: 24px; }
+.modal-title-wrap h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.02em;
+}
+.ai-source-tag {
+    font-size: 11px;
+    color: var(--apple-purple-text);
+    font-weight: 600;
+}
+
+.modal-close {
+    background: var(--bg-surface-tertiary);
+    border: none;
+    color: var(--text-secondary);
+    font-size: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--spring-transition);
+}
+.modal-close:hover {
+    background: #e5e5ea;
+    color: var(--text-primary);
+}
+
+.modal-body {
+    padding: 24px;
+    overflow-y: auto;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--text-primary);
+    background: #ffffff;
+}
+
+.modal-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--divider);
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    background: var(--bg-surface-secondary);
+}
+
+/* Modal Table Styling (Audit Logs) */
+.audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    background: #ffffff;
+}
+.audit-table th {
+    background: #f5f5f7;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--divider);
+    text-align: left;
+}
+.audit-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--divider);
+    text-align: left;
+    color: var(--text-primary);
+}
+.audit-table tbody tr:hover {
+    background: var(--bg-subtle-hover);
+}
+
+/* AI Remediation Markdown Styling */
+.ai-loading {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--text-secondary);
+}
+.spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #e5e5ea;
+    border-top-color: var(--apple-blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px auto;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.ai-content-markdown h3, .ai-content-markdown h4 {
+    color: var(--text-primary);
+    margin-top: 16px;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+.ai-content-markdown ul {
+    margin-left: 20px;
+    margin-bottom: 12px;
+}
+.ai-content-markdown pre {
+    background: #f5f5f7;
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #0f172a;
+    margin: 12px 0;
+}
+.ai-content-markdown code {
+    font-family: var(--font-mono);
+    color: #b91c1c;
+    background: #fef2f2;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+.ai-content-markdown blockquote {
+    border-left: 3px solid var(--apple-purple);
+    background: var(--apple-purple-subtle);
+    padding: 10px 14px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+    color: var(--apple-purple-text);
+}
+
+/* ==========================================================================
+   Toasts (iOS / macOS Notification Banner)
+   ========================================================================== */
+.toast-container {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 20000;
+}
+.toast {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    padding: 14px 20px;
+    border-radius: var(--radius-pill);
+    font-size: 13px;
+    color: var(--text-primary);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes slideDown {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Utility Colors (Apple Tinted) */
+.text-danger { color: var(--apple-red-text) !important; font-weight: 600; }
+.text-warning { color: var(--apple-orange-text) !important; font-weight: 600; }
+.text-success { color: var(--apple-green-text) !important; font-weight: 600; }
+.text-orange { color: var(--apple-orange-text) !important; font-weight: 600; }
+
+/* Responsive adjustments */
+@media (max-width: 1140px) {
+    .content-split {
+        grid-template-columns: 1fr;
+    }
+    .inspector-panel {
+        max-height: none;
+        position: static;
+    }
+}
