@@ -21,8 +21,14 @@ class VulnerabilityValidator:
         Compare Windows OS Build strings like '17763.9245' >= '17763.6054'
         """
         try:
-            c_nums = [int(p) for p in re.findall(r'\d+', str(current_build))]
-            r_nums = [int(p) for p in re.findall(r'\d+', str(required_build))]
+            def parse_build(value):
+                value = str(value).strip()
+                if not re.fullmatch(r'\d+(?:\.\d+){1,3}', value):
+                    return []
+                parts = [int(p) for p in value.split('.')]
+                return parts[2:] if len(parts) == 4 and parts[:2] == [10, 0] else parts
+            c_nums = parse_build(current_build)
+            r_nums = parse_build(required_build)
             if not c_nums or not r_nums:
                 return False
             # If same major build (e.g. 17763 == 17763), compare revision (9245 >= 6054)
@@ -31,7 +37,7 @@ class VulnerabilityValidator:
                 r_ubr = r_nums[1] if len(r_nums) > 1 else 0
                 return c_ubr >= r_ubr
             # If newer major release (e.g. 20348 > 17763)
-            return c_nums[0] > r_nums[0]
+            return False  # Different Windows servicing branches are not interchangeable.
         except Exception:
             return False
 
@@ -58,7 +64,7 @@ class VulnerabilityValidator:
         :param server_reboot_note: Specific note about what was installed
         """
         cve_id = vuln.get("cve", "")
-        wazuh_status = vuln.get("status", "ACTIVE").upper()
+        wazuh_status = (vuln.get("wazuh_status") or vuln.get("status") or "ACTIVE").upper()
         vuln_title = vuln.get("title", "")
         vuln_severity = vuln.get("severity", "Medium")
 
@@ -95,9 +101,9 @@ class VulnerabilityValidator:
                     logger.info(f"Rule #4 Match: {cve_id} has {norm_expected_kb} installed/staged, waiting for host reboot.")
                     return {
                         "cve": cve_id,
-                        "status": cls.STATUS_REMEDIATED_PENDING_RESCAN,
+                        "status": cls.STATUS_CONFIRMED_VULNERABLE,
                         "reason": f"Bản vá {norm_expected_kb} đã được cài đặt trên máy chủ qua WSUS. {server_reboot_note or 'Đang chờ khởi động lại máy chủ (Pending Restart) để hoàn tất kích hoạt.'}",
-                        "action_required": False,
+                        "action_required": True,
                         "reboot_required": True,
                         "recommended_action": f"Khởi động lại (Restart) máy chủ để hoàn tất kích hoạt bản vá {norm_expected_kb}."
                     }
@@ -132,9 +138,9 @@ class VulnerabilityValidator:
             return {
                 "cve": cve_id,
                 "status": cls.STATUS_CONFIRMED_VULNERABLE,
-                "reason": "Lỗ hổng thuộc phần mềm ứng dụng (Non-OS KB / Tầng ứng dụng), không phát hành qua gói Windows Cumulative Update của WSUS. Cần nâng cấp trực tiếp phần mềm lên phiên bản an toàn, gỡ bỏ ứng dụng không dùng hoặc bấm [Hỏi AI Gemini] để áp dụng biện pháp cô lập.",
+                "reason": "Lỗ hổng thuộc phần mềm ứng dụng (Non-OS KB / Tầng ứng dụng), không phát hành qua gói Windows Cumulative Update của WSUS. Cần nâng cấp trực tiếp phần mềm lên phiên bản an toàn, gỡ bỏ ứng dụng không dùng hoặc bấm [Dự đoán & Khắc phục qua AI] để áp dụng biện pháp cô lập.",
                 "action_required": True,
-                "recommended_action": "Cập nhật trực tiếp phiên bản phần mềm hoặc đăng ký Ngoại lệ (Exception) theo hướng dẫn AI Gemini."
+                "recommended_action": "Cập nhật trực tiếp phiên bản phần mềm hoặc đăng ký Ngoại lệ (Exception) theo hướng dẫn của AI."
             }
 
         # 4. Confirmed Vulnerable OS Patch
@@ -216,12 +222,13 @@ class VulnerabilityValidator:
                 server_reboot_note=server_reboot_note
             )
 
+            validation["wazuh_status"] = v.get("wazuh_status", v.get("status", "ACTIVE"))
             validation["severity"] = v.get("severity", "Medium")
             validation["cvss"] = v.get("cvss", 0.0)
             validation["title"] = mapping.get("title", v.get("title", ""))
             validation["expected_kb"] = expected_kb
             validation["min_build"] = min_build
-            validation["published_date"] = v.get("published", "")
+            validation["published_date"] = v.get("published", v.get("published_date", ""))
 
             status = validation["status"]
 
@@ -258,7 +265,12 @@ class VulnerabilityValidator:
         needs_reboot = any(v.get("reboot_required") for v in validated_vulns)
 
         # If the server was marked reboot_pending, but the OS build now satisfies the updates:
-        if is_server_reboot and not needs_reboot:
+        mapped_vulns = [v for v in validated_vulns if v.get("expected_kb")]
+        build_verified = bool(mapped_vulns) and all(
+            v.get("min_build") and cls._is_build_greater_or_equal(os_build, v["min_build"])
+            for v in mapped_vulns
+        )
+        if is_server_reboot and not needs_reboot and build_verified:
             is_server_reboot = False
             logger.info(f"Auto-cleared reboot_pending for {agent_name} (ID: {agent_id}) - Host build {os_build} satisfies all installed KBs.")
             if reboot_file.exists() and str(agent_id) in rdata:

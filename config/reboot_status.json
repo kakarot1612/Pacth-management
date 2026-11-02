@@ -4,10 +4,18 @@
     "reboot_pending": false,
     "reboot_reasons": ""
   },
+  "021": {
+    "agent_id": "021",
+    "reboot_pending": true,
+    "reboot_reasons": "Admin Manual Flag",
+    "updated_at": "2026-11-02 13:54:56"
+  },
   "028": {
+    "agent_id": "028",
     "agent_name": "BPVN-BPTERP",
     "reboot_pending": true,
-    "reboot_reasons": "Đã cài đặt bản vá KB5123099 - Kernel Build hiện tại (14393.9234) chưa đạt 14393.9512 - Chờ Restart máy"
+    "reboot_reasons": "Đã cài đặt bản vá KB5123099 - Kernel Build hiện tại (14393.9234) chưa đạt 14393.9512 - Chờ Restart máy",
+    "updated_at": "2026-11-02 10:27:42"
   },
   "008": {
     "agent_name": "BPVN-HYPERV02",

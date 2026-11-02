@@ -308,6 +308,8 @@
       "title": "WinRAR / File Archiver Remote Code Execution (Zero-day / Non-KB Application)",
       "severity": "High",
       "cvss": 7.8,
+      "package_name": "winrar",
+      "min_safe_version": "6.23",
       "kb_map": {},
       "build_map": {}
     },
@@ -315,6 +317,7 @@
       "title": "Microsoft Moniker Link Remote Code Execution Vulnerability (No direct OS Cumulative KB - App Level)",
       "severity": "Critical",
       "cvss": 9.8,
+      "package_name": "outlook",
       "kb_map": {},
       "build_map": {}
     }

@@ -17,12 +17,14 @@ if sys.platform == "win32":
 
 from core.config import Settings, REPORTS_DIR, BASE_DIR, logger
 from core.wazuh_client import WazuhClient
+from core.wsus_client import test_wsus_connectivity
 from core.cve_kb_mapper import CveKbMapper
 from core.validator import VulnerabilityValidator
 from core.sla_tracker import SlaTracker
 from core.exception_manager import ExceptionManager
-from core.ai_advisor import GeminiAiAdvisor
+from core.ai_advisor import GeminiAiAdvisor, AiAdvisor
 from core.reporter import AuditReporter
+from core.security import auth_store
 
 WEB_DIR = BASE_DIR / "web"
 
@@ -36,13 +38,21 @@ def get_or_create_audit():
         try:
             with open(latest_file, "r", encoding="utf-8") as f:
                 CURRENT_AUDIT_DATA = json.load(f)
+                try:
+                    age = (datetime.now() - datetime.strptime(CURRENT_AUDIT_DATA['generated_at'], '%Y-%m-%d %H:%M:%S')).total_seconds()
+                    state = 'stale' if age > Settings.DATA_MAX_AGE_MINUTES * 60 else CURRENT_AUDIT_DATA.get('data_status', 'unknown')
+                except (KeyError, ValueError, TypeError):
+                    state = 'unknown'
+                CURRENT_AUDIT_DATA['data_status'] = state
+                if state in ('stale', 'unknown', 'partial', 'demo'):
+                    CURRENT_AUDIT_DATA.setdefault('metrics', {})['compliance_status'] = 'UNVERIFIED'
                 return CURRENT_AUDIT_DATA
         except Exception as e:
             logger.error(f"Error reading latest report: {e}")
 
-    # Generate initial sample dataset
+    # Never manufacture demo inventory on a configured live installation.
     from main import run_scan
-    run_scan(mock=True)
+    run_scan(mock=not Settings.is_wazuh_configured())
     if latest_file.exists():
         with open(latest_file, "r", encoding="utf-8") as f:
             CURRENT_AUDIT_DATA = json.load(f)
@@ -66,21 +76,46 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(response_bytes)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         self.wfile.write(response_bytes)
 
+    def _authorize(self, path, mutation=False):
+        origin = self.headers.get("Origin")
+        if mutation and (self.headers.get("Sec-Fetch-Site") == "cross-site" or
+                         (origin and urlparse(origin).netloc != self.headers.get("Host"))):
+            self._send_json(403, {"success": False, "message": "Cross-origin request denied."})
+            return False
+        if not Settings.AUTH_ENABLED:
+            self.auth_user = {"username": "local_admin", "role": "admin"}
+            return True
+
+        if not auth_store.users():
+            if mutation or path.startswith("/api/"):
+                self._send_json(503, {"success": False, "message": "Chưa có tài khoản. Chạy python scripts/manage_users.py admin --role admin trên máy chủ."})
+                return False
+            return True
+        user = auth_store.authenticate(self.headers.get("Authorization"), self.client_address[0])
+        if not user:
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="BPVN Patch Management", charset="UTF-8"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return False
+        if mutation and not auth_store.allowed(user, path):
+            self._send_json(403, {"success": False, "message": "Tài khoản không có quyền thực hiện thao tác."})
+            return False
+        self.auth_user = user
+        return True
+
     def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
+        self._send_json(405, {"error": "Cross-origin API access is disabled."})
 
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._authorize(path):
+            return
 
         if path == "/api/status":
             audit = get_or_create_audit()
@@ -104,8 +139,61 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(200, {
                 "status": "online",
                 "wazuh_configured": Settings.is_wazuh_configured(),
+                "data_status": audit.get("data_status", "unknown"),
+                "generated_at": audit.get("generated_at"),
+                "ai_provider": Settings.AI_PROVIDER,
                 "metrics": metrics
             })
+            return
+
+        elif path == "/api/infra-health":
+            wazuh_health = WazuhClient().check_wazuh_health()
+            wsus_health = test_wsus_connectivity()
+            self._send_json(200, {
+                "wazuh": wazuh_health,
+                "wsus": wsus_health,
+                "ai": {
+                    "provider": Settings.AI_PROVIDER,
+                    "configured": Settings.is_ai_configured(),
+                    "gemini_model": Settings.GEMINI_MODEL
+                },
+                "mcp": {
+                    "url": Settings.CVE_MCP_URL,
+                    "enabled": Settings.CVE_MCP_ENABLED
+                },
+                "auth": {
+                    "enabled": Settings.AUTH_ENABLED,
+                    "users_count": len(auth_store.users())
+                }
+            })
+            return
+
+        elif path == "/api/mcp-health":
+            import requests, time
+            start = time.time()
+            mcp_url = Settings.CVE_MCP_URL
+            headers = {"Host": Settings.CVE_MCP_HOST} if Settings.CVE_MCP_HOST else {}
+            try:
+                r = requests.get(mcp_url, headers=headers, timeout=2.5)
+                latency = round((time.time() - start) * 1000, 1)
+                self._send_json(200, {
+                    "status": "connected" if r.status_code in (200, 404, 405) else "misconfigured",
+                    "status_code": r.status_code,
+                    "latency_ms": latency,
+                    "url": mcp_url,
+                    "host": Settings.CVE_MCP_HOST,
+                    "enabled": Settings.CVE_MCP_ENABLED,
+                    "fallback_ready": True
+                })
+            except Exception as e:
+                self._send_json(200, {
+                    "status": "offline_or_blocked",
+                    "error": str(e),
+                    "url": mcp_url,
+                    "host": Settings.CVE_MCP_HOST,
+                    "enabled": Settings.CVE_MCP_ENABLED,
+                    "fallback_ready": True
+                })
             return
 
         elif path == "/api/servers":
@@ -126,6 +214,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 except Exception:
                     pass
 
+            from core.threat_intel import ThreatIntelEngine
             for s in servers:
                 s["wsus_group"] = default_group
                 aid = str(s.get("agent_id"))
@@ -135,7 +224,29 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 else:
                     s["reboot_pending"] = bool(s.get("reboot_pending", False))
                     s["reboot_reasons"] = s.get("reboot_reasons", "")
+
+                # Enrich active & pending vulnerabilities with Threat Intelligence
+                for v in s.get("vulnerabilities", []):
+                    c_id = v.get("cve")
+                    if c_id and not v.get("threat_intel"):
+                        try:
+                            v["threat_intel"] = ThreatIntelEngine.get_cve_intel(
+                                c_id,
+                                title=v.get("title", ""),
+                                severity=v.get("severity", "High"),
+                                cvss=float(v.get("cvss", 7.5))
+                            )
+                        except Exception:
+                            pass
+
             self._send_json(200, {"servers": servers})
+            return
+
+        elif path.startswith("/api/cve-intel/"):
+            cve_id = path.replace("/api/cve-intel/", "").strip().upper()
+            from core.threat_intel import ThreatIntelEngine
+            intel = ThreatIntelEngine.get_cve_intel(cve_id)
+            self._send_json(200, intel)
             return
 
         elif path.startswith("/api/server/"):
@@ -147,6 +258,16 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 self._send_json(200, match)
             else:
                 self._send_json(404, {"error": "Server not found"})
+            return
+
+        elif path.startswith("/api/server-packages/"):
+            agent_id = path.replace("/api/server-packages/", "").strip()
+            try:
+                client = WazuhClient()
+                pkgs = client.get_agent_packages(agent_id)
+                self._send_json(200, {"agent_id": agent_id, "packages": pkgs})
+            except Exception as e:
+                self._send_json(500, {"error": str(e), "packages": []})
             return
 
         elif path == "/api/groups":
@@ -168,6 +289,8 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                         data = json.load(f)
                 except Exception:
                     pass
+            data["approvals"] = {key: entry for key, entry in data.get("approvals", {}).items()
+                                 if entry.get("source") == "WSUS"}
             self._send_json(200, data)
             return
 
@@ -178,7 +301,11 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 "wazuh_configured": Settings.is_wazuh_configured(),
                 "wsus_server": Settings.WSUS_SERVER_FQDN,
                 "wsus_port": Settings.WSUS_PORT,
-                "gemini_configured": bool(Settings.GEMINI_API_KEY)
+                "openrouter_configured": bool(Settings.OPENROUTER_API_KEY),
+                "openrouter_model": Settings.OPENROUTER_MODEL,
+                "gemini_configured": bool(Settings.GEMINI_API_KEY),
+                "ai_configured": Settings.is_ai_configured(),
+                "active_ai_provider": "OpenRouter (DeepSeek)" if Settings.OPENROUTER_API_KEY else ("Google Gemini" if Settings.GEMINI_API_KEY else "Offline Security Playbook")
             })
             return
 
@@ -241,31 +368,48 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        global CURRENT_AUDIT_DATA
         parsed = urlparse(self.path)
         path = parsed.path
 
-        content_length = int(self.headers.get("Content-Length", 0))
+        if not self._authorize(path, mutation=True):
+            return
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            if not 0 <= content_length <= 1_000_000:
+                raise ValueError()
+        except ValueError:
+            self._send_json(413, {"success": False, "message": "Invalid or oversized request."})
+            return
         body = self.rfile.read(content_length)
         payload = {}
         if body:
             try:
                 payload = json.loads(body.decode("utf-8"))
-            except Exception:
-                pass
+            except (ValueError, UnicodeDecodeError):
+                self._send_json(400, {"success": False, "message": "JSON không hợp lệ."})
+                return
+        if not isinstance(payload, dict):
+            self._send_json(400, {"success": False, "message": "JSON phải là object."})
+            return
 
         if path == "/api/scan":
-            global CURRENT_AUDIT_DATA
             from main import run_scan
             from core.audit_logger import AuditLogger
             use_mock = not Settings.is_wazuh_configured()
-            run_scan(mock=use_mock)
+            try:
+                run_scan(mock=use_mock)
+            except Exception as e:
+                logger.error(f"Scan failed: {e}")
+                self._send_json(502, {"success": False, "message": "Quét thất bại; giữ nguyên báo cáo trước đó."})
+                return
             CURRENT_AUDIT_DATA = get_or_create_audit()
             AuditLogger.log_event(
                 action="SCAN_CYCLE",
                 server_name="Toàn bộ 19 Máy chủ",
                 agent_id="ALL",
                 details=f"Hoàn tất chu kỳ rà soát lỗ hổng & Rule #4. Tỷ lệ tuân thủ: {CURRENT_AUDIT_DATA.get('metrics', {}).get('overall_compliance_percent')}%",
-                source="Web UI / Admin"
+                source=f"Web UI / {self.auth_user['username']}"
             )
             self._send_json(200, {"success": True, "metrics": CURRENT_AUDIT_DATA.get("metrics", {})})
             return
@@ -280,12 +424,6 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
             if Settings.is_wazuh_configured():
                 try:
                     client = WazuhClient()
-                    # Best-effort restart signal
-                    try:
-                        client.restart_agent(agent_id)
-                    except Exception:
-                        pass
-
                     cve_mapper = CveKbMapper()
                     hotfixes = client.get_agent_hotfixes(agent_id)
                     os_info = client.get_agent_os(agent_id)
@@ -293,7 +431,6 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                     if os_info:
                         inner_os = os_info.get("os") if isinstance(os_info.get("os"), dict) else os_info
                         agent_os_name = inner_os.get("name") or inner_os.get("os_name", "")
-                    vulns = client.get_agent_vulnerabilities(agent_id, os_name=agent_os_name)
 
                     agent_name = ""
                     agent_ip = ""
@@ -310,6 +447,14 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                             agent_name = existing_srv.get("agent_name", f"Agent-{agent_id}")
                             agent_ip = existing_srv.get("ip", "")
 
+                    packages = client.get_agent_packages(agent_id)
+                    vulns = client.get_agent_vulnerabilities(
+                        agent_id=agent_id,
+                        os_name=agent_os_name,
+                        installed_packages=packages,
+                        agent_name=agent_name
+                    )
+
                     new_server_audit = VulnerabilityValidator.audit_agent(
                         agent_id=agent_id,
                         agent_name=agent_name,
@@ -320,6 +465,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                         agent_ip=agent_ip
                     )
 
+                    new_server_audit["data_status"] = getattr(client, "vulnerability_data_status", "unknown")
                     # Update in-memory and persisted report
                     current_audit = get_or_create_audit()
                     servers_list = current_audit.get("servers", [])
@@ -339,7 +485,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                         server_name=agent_name,
                         agent_id=agent_id,
                         details=f"Kiểm toán live Syscollector & Rule #4: {len(new_server_audit.get('installed_hotfixes', []))} KBs đã cài. Lỗ hổng active: {new_server_audit.get('summary', {}).get('confirmed_vulnerable')}. Cần reboot: {new_server_audit.get('reboot_pending')}.",
-                        source="Web UI / Admin"
+                        source=f"Web UI / {self.auth_user['username']}"
                     )
 
                     self._send_json(200, {
@@ -358,6 +504,16 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
         elif path == "/api/approve-kb":
             kb = payload.get("kb", "").strip().upper()
             group = payload.get("group", "BPVN-Server").strip()
+            from core.wsus_client import change_approval
+            try:
+                change_approval(kb, group, approve=True)
+            except ValueError as e:
+                self._send_json(400, {"success": False, "message": str(e)})
+                return
+            except Exception as e:
+                logger.error(f"WSUS operation failed: {e}")
+                self._send_json(502, {"success": False, "message": "WSUS chưa xác nhận thao tác. Kiểm tra kết nối, WSUS Console và quyền tài khoản chạy app."})
+                return
             approvals_file = BASE_DIR / "config" / "wsus_approvals.json"
             appr_data = {"approvals": {}}
             if approvals_file.exists():
@@ -369,7 +525,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
 
             appr_key = f"{kb}_{group}"
             existing = appr_data.get("approvals", {}).get(appr_key)
-            if existing and existing.get("status") == "APPROVED":
+            if existing and existing.get("status") == "APPROVED" and existing.get("source") == "WSUS":
                 self._send_json(200, {
                     "success": False,
                     "already_approved": True,
@@ -384,6 +540,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 "kb": kb,
                 "group": group,
                 "status": "APPROVED",
+                "source": "WSUS",
                 "approved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             try:
@@ -398,7 +555,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 action="WSUS_APPROVE",
                 server_name=f"Group: {group}",
                 details=f"Phê duyệt thành công bản vá {kb} trên WSUS cho nhóm [{group}].",
-                source="Web UI / Admin"
+                source=f"Web UI / {self.auth_user['username']}"
             )
             self._send_json(200, {
                 "success": True,
@@ -412,6 +569,16 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
         elif path == "/api/unapprove-kb":
             kb = payload.get("kb", "").strip().upper()
             group = payload.get("group", "BPVN-Server").strip()
+            from core.wsus_client import change_approval
+            try:
+                change_approval(kb, group, approve=False)
+            except ValueError as e:
+                self._send_json(400, {"success": False, "message": str(e)})
+                return
+            except Exception as e:
+                logger.error(f"WSUS operation failed: {e}")
+                self._send_json(502, {"success": False, "message": "WSUS chưa xác nhận thao tác. Kiểm tra kết nối, WSUS Console và quyền tài khoản chạy app."})
+                return
             approvals_file = BASE_DIR / "config" / "wsus_approvals.json"
             appr_data = {"approvals": {}}
             if approvals_file.exists():
@@ -437,7 +604,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 action="WSUS_UNAPPROVE",
                 server_name=f"Group: {group}",
                 details=f"Hủy phê duyệt bản vá {kb} trên WSUS cho nhóm [{group}].",
-                source="Web UI / Admin"
+                source=f"Web UI / {self.auth_user['username']}"
             )
             self._send_json(200, {
                 "success": True,
@@ -471,6 +638,29 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 logger.error(f"Error saving reboot status: {e}")
 
+            # Instantly re-evaluate the server against Rule #4 with the new reboot flag
+            current_audit = get_or_create_audit()
+            servers_list = current_audit.get("servers", [])
+            idx = next((i for i, s in enumerate(servers_list) if str(s.get("agent_id")) == agent_id), -1)
+            updated_server = None
+            if idx >= 0:
+                old_server = servers_list[idx]
+                cve_mapper = CveKbMapper()
+                # Run audit_agent with current server data and updated reboot state
+                new_server_audit = VulnerabilityValidator.audit_agent(
+                    agent_id=agent_id,
+                    agent_name=old_server.get("agent_name", ""),
+                    vulnerabilities=old_server.get("vulnerabilities", []),
+                    hotfixes=[{"hotfix": hf} for hf in old_server.get("installed_hotfixes", [])],
+                    os_info={"os": {"name": old_server.get("os_name", ""), "build": old_server.get("os_build", "")}},
+                    cve_mapper=cve_mapper,
+                    agent_ip=old_server.get("ip", "")
+                )
+                servers_list[idx] = new_server_audit
+                updated_server = new_server_audit
+                exc_mgr = ExceptionManager()
+                CURRENT_AUDIT_DATA = AuditReporter.generate_report(servers_list, exc_mgr.exceptions)
+
             logger.info(f"Updated reboot status for agent {agent_id}: pending={reboot_pending}")
             from core.audit_logger import AuditLogger
             AuditLogger.log_event(
@@ -478,12 +668,14 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 server_name=f"Agent ID: {agent_id}",
                 agent_id=agent_id,
                 details=f"Cập nhật cờ Reboot = {reboot_pending}. Lý do: {reboot_reasons or 'Thủ công từ Admin'}",
-                source="Web UI / Admin"
+                source=f"Web UI / {self.auth_user['username']}"
             )
             self._send_json(200, {
                 "success": True,
                 "agent_id": agent_id,
                 "reboot_pending": reboot_pending,
+                "server": updated_server,
+                "metrics": CURRENT_AUDIT_DATA.get("metrics", {}) if CURRENT_AUDIT_DATA else {},
                 "message": f"Đã cập nhật trạng thái Reboot cho máy chủ (Pending={reboot_pending})."
             })
             return
@@ -491,28 +683,94 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
         elif path == "/api/install-kb":
             kb = payload.get("kb", "").strip().upper()
             server_name = payload.get("server", "").strip()
-            logger.info(f"Triggering install for {kb} on {server_name}")
-            cmd = f"powershell -ExecutionPolicy Bypass -File scripts\\Install-PendingUpdates.ps1 -KbNumber {kb}"
-            self._send_json(200, {
-                "success": True,
-                "kb": kb,
-                "server": server_name,
-                "command": cmd,
-                "message": f"Lệnh cài đặt bản vá {kb} đã sẵn sàng thực thi trên {server_name}."
-            })
+            agent_id = str(payload.get("agent_id", "")).strip()
+            target_ip = payload.get("ip", "").strip()
+            if not target_ip:
+                audit = get_or_create_audit()
+                for s in audit.get("servers", []):
+                    if (agent_id and str(s.get("agent_id")) == agent_id) or (server_name and s.get("agent_name") == server_name):
+                        target_ip = s.get("ip", "")
+                        break
+            target_host = target_ip or server_name or "localhost"
+            logger.info(f"Triggering WinRM remote install for {kb} on {server_name} ({target_host})")
+            from core.winrm_client import WinRMClient
+            winrm_result = WinRMClient.trigger_remote_install(target_host, kb_number=kb)
+            fallback_cmd = f"powershell -ExecutionPolicy Bypass -File scripts\\Install-PendingUpdates.ps1 -KbNumber {kb}"
+            if winrm_result.get("success"):
+                data = winrm_result.get("data", {})
+                reboot_req = bool(data.get("RebootRequired", False))
+                msg = f"Đã kích hoạt cài đặt bản vá {kb} thành công từ xa qua WinRM trên {server_name}."
+                if reboot_req:
+                    msg += " Máy chủ yêu cầu Khởi động lại (Reboot Required) để hoàn tất cập nhật."
+                from core.audit_logger import AuditLogger
+                AuditLogger.log_event(
+                    action="WINRM_INSTALL_KB",
+                    server_name=server_name,
+                    agent_id=agent_id,
+                    details=f"WinRM Install {kb}: {msg}",
+                    source=f"Web UI / {getattr(self, 'auth_user', {}).get('username', 'admin')}"
+                )
+                self._send_json(200, {
+                    "success": True,
+                    "remote_execution": True,
+                    "kb": kb,
+                    "server": server_name,
+                    "host": target_host,
+                    "winrm_status": data.get("Status", "SUCCESS"),
+                    "reboot_required": reboot_req,
+                    "installed_count": data.get("InstalledCount", 1),
+                    "command": fallback_cmd,
+                    "message": msg
+                })
+            else:
+                err_detail = winrm_result.get("error") or "Không thể kết nối WinRM"
+                logger.warning(f"WinRM remote install to {target_host} failed: {err_detail}. Providing fallback command.")
+                self._send_json(200, {
+                    "success": False,
+                    "remote_execution": False,
+                    "kb": kb,
+                    "server": server_name,
+                    "host": target_host,
+                    "winrm_error": err_detail,
+                    "command": fallback_cmd,
+                    "message": f"WinRM chưa kết nối được tới {target_host} ({err_detail}). Quản trị viên có thể thực thi lệnh thủ công sau trên node:"
+                })
             return
 
-        elif path == "/api/gemini-advice":
-            cve = payload.get("cve", "CVE-UNKNOWN")
-            server = payload.get("server", "Server01")
-            os_name = payload.get("os", "Windows Server")
-            advice = GeminiAiAdvisor.get_remediation_guidance(
+        elif path == "/api/client-reboot-check":
+            host = payload.get("host") or payload.get("ip") or payload.get("server", "")
+            from core.winrm_client import WinRMClient
+            result = WinRMClient.check_remote_pending_reboot(host)
+            self._send_json(200, result)
+            return
+
+        elif path in ("/api/ai-advice", "/api/gemini-advice"):
+            cve = payload.get("cve") or payload.get("cve_id") or "CVE-UNKNOWN"
+            server = payload.get("server") or payload.get("server_name") or "Server01"
+            os_name = payload.get("os") or payload.get("os_name") or "Windows Server"
+            advice = AiAdvisor.get_remediation_guidance(
                 cve_id=cve,
                 server_name=server,
                 os_name=os_name,
                 vuln_details=payload
             )
             self._send_json(200, advice)
+            return
+
+        elif path == "/api/bulk-cve-intel":
+            from core.threat_intel import ThreatIntelEngine
+            cves = payload.get("cves", [])
+            results = {}
+            for item in cves:
+                if isinstance(item, str):
+                    c_id = item
+                    t = ""
+                else:
+                    c_id = item.get("cve", "")
+                    t = item.get("title", "")
+                if c_id:
+                    results[c_id] = ThreatIntelEngine.get_cve_intel(c_id, title=t)
+            self._send_json(200, {"threat_intel": results})
             return
 
         elif path == "/api/exception":
@@ -523,7 +781,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 reason=payload.get("reason"),
                 compensating_control=payload.get("control"),
                 owner=payload.get("owner", "InfraOps"),
-                approved_by=payload.get("approved_by", "SecOps"),
+                approved_by=self.auth_user["username"],
                 expiration_date=payload.get("expires", "2026-12-31")
             )
             self._send_json(200, {"success": True, "exception": new_exc})
@@ -533,10 +791,9 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
 
 def run_server(port: int = 8080):
     from core.scheduler import scheduler
-    scheduler.start()
-
-    server_address = ("0.0.0.0", port)
+    server_address = (Settings.WEB_BIND_HOST, port)
     httpd = ThreadingHTTPServer(server_address, PatchManagementHttpHandler)
+    scheduler.start()
     print("\n" + "="*60)
     print("      HỆ THỐNG WEB QUẢN LÝ VULNERABILITY & PATCH MANAGEMENT")
     print("="*60)
@@ -544,7 +801,7 @@ def run_server(port: int = 8080):
     print(f"[+] Giao diện điều khiển UI : http://127.0.0.1:{port}")
     print(f"[+] Trạng thái Wazuh        : {'Đã cấu hình' if Settings.is_wazuh_configured() else 'Chạy Mock / Sẵn sàng nhận .env'}")
     print(f"[+] Đặt lịch Quét Tự Động   : BẬT (Chu kỳ mỗi 30 phút tự động kiểm tra 19 agents)")
-    print(f"[+] AI Gemini Advisor       : {'Kích hoạt Live Gemini API' if Settings.GEMINI_API_KEY else 'Built-in Security Expert Engine'}")
+    print(f"[+] AI Gemini Advisor       : {Settings.AI_PROVIDER} (configured={Settings.is_ai_configured()})")
     print("-" * 60)
     print("Nhấn Ctrl+C để dừng máy chủ web.")
     print("="*60 + "\n")

@@ -1,4 +1,6 @@
 import time
+import json
+import re
 import requests
 import urllib3
 import logging
@@ -115,54 +117,208 @@ class WazuhClient:
             params["os.platform"] = os_filter
 
         data = self._request("GET", "/agents", params=params)
-        if data and "affected_items" in data:
+        if data and "affected_items" in data and len(data["affected_items"]) > 0:
             return data["affected_items"]
         return []
 
-    def get_agent_vulnerabilities(self, agent_id: str, severity: Optional[str] = None, os_name: str = "") -> List[Dict[str, Any]]:
+    def _query_indexer_vulns(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Query Wazuh Indexer (OpenSearch on port 9200) for real-time vulnerability states"""
+        if not Settings.WAZUH_INDEXER_URL:
+            return None
+        try:
+            url = f"{Settings.WAZUH_INDEXER_URL}/wazuh-states-vulnerabilities-*/_search"
+            auth = (Settings.WAZUH_INDEXER_USER, Settings.WAZUH_INDEXER_PASSWORD) if Settings.WAZUH_INDEXER_USER else None
+            query = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"agent.id": str(agent_id)}}
+                        ]
+                    }
+                },
+                "size": 500
+            }
+            resp = requests.post(url, auth=auth, json=query, verify=self.verify_ssl, timeout=10)
+            if resp.status_code == 200:
+                hits = resp.json().get("hits", {}).get("hits", [])
+                vulns = []
+                for h in hits:
+                    src = h.get("_source", {})
+                    v_info = src.get("vulnerability", {})
+                    vulns.append({
+                        "cve": v_info.get("cve") or v_info.get("id"),
+                        "title": v_info.get("title") or v_info.get("name", ""),
+                        "severity": v_info.get("severity", "High"),
+                        "cvss": float(v_info.get("cvss", {}).get("cvss3", {}).get("base_score", 7.5)),
+                        "status": "ACTIVE"
+                    })
+                total = resp.json().get("hits", {}).get("total", len(hits))
+                total = total.get("value", len(hits)) if isinstance(total, dict) else total
+                self.vulnerability_data_status = "partial" if total > len(hits) else "fresh"
+                if vulns:
+                    logger.info(f"Retrieved {len(vulns)} real vulnerabilities from Wazuh Indexer for agent {agent_id}")
+                return vulns
+        except Exception as e:
+            logger.debug(f"Wazuh Indexer query skipped: {e}")
+        return None
+
+    def _load_exported_vulns(self, agent_id: str, agent_name: str = "") -> List[Dict[str, Any]]:
+        """Load real vulnerabilities from a Wazuh Dashboard exported CSV/JSON file if present"""
+        file_path = Settings.WAZUH_VULNS_FILE
+        if not file_path or not file_path.exists():
+            return []
+        vulns = []
+        try:
+            if file_path.suffix.lower() == ".json":
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for item in data:
+                        if str(item.get("agent_id")) == str(agent_id) or item.get("agent_name") == agent_name:
+                            vulns.append({
+                                "cve": item.get("cve"),
+                                "title": item.get("title", ""),
+                                "severity": item.get("severity", "High"),
+                                "cvss": float(item.get("cvss", 7.5)),
+                                "status": item.get("status", "ACTIVE")
+                            })
+            elif file_path.suffix.lower() == ".csv":
+                import csv
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        r_aid = str(row.get("Agent ID") or row.get("agent.id") or row.get("agent_id", "")).strip()
+                        r_aname = str(row.get("Agent Name") or row.get("agent.name") or row.get("agent_name", "")).strip()
+                        if r_aid == str(agent_id) or (agent_name and r_aname.lower() == agent_name.lower()):
+                            cve_id = row.get("CVE") or row.get("vulnerability.cve") or row.get("cve", "")
+                            if cve_id:
+                                vulns.append({
+                                    "cve": cve_id.strip(),
+                                    "title": row.get("Title") or row.get("vulnerability.title") or row.get("title", ""),
+                                    "severity": row.get("Severity") or row.get("vulnerability.severity") or "High",
+                                    "cvss": float(row.get("CVSS") or row.get("cvss") or 7.5),
+                                    "status": "ACTIVE"
+                                })
+            if vulns:
+                logger.info(f"Loaded {len(vulns)} real vulnerabilities from exported Wazuh file for agent {agent_id}")
+        except Exception as e:
+            logger.error(f"Error parsing exported Wazuh vulnerabilities file: {e}")
+        return vulns
+
+    def get_agent_vulnerabilities(
+        self,
+        agent_id: str,
+        severity: Optional[str] = None,
+        os_name: str = "",
+        installed_packages: Optional[List[Dict[str, Any]]] = None,
+        agent_name: str = ""
+    ) -> List[Dict[str, Any]]:
         """
-        Retrieve vulnerabilities for a specific agent.
-        Supports both legacy Wazuh /vulnerability/{agent_id} and modern Wazuh 4.8+/4.14+
-        by checking baseline security advisories matching the agent's OS.
+        Retrieve vulnerabilities for a specific agent without fabrication.
+        1. Query Wazuh Server API (/vulnerability/{agent_id}) if available.
+        2. Query Wazuh Indexer (wazuh-states-vulnerabilities-*) if configured.
+        3. Read from official Wazuh Dashboard CSV/JSON export if present.
+        4. Factual Syscollector cross-match:
+           - OS Cumulative Updates: Match baseline CVEs matching the agent's exact OS edition.
+           - Application CVEs: STRICTLY check whether the software is actually installed on the host.
+             If software is NOT installed, it is physically impossible to be vulnerable. NEVER infer!
         """
+        self.vulnerability_data_status = "unknown"
+        # 1. Wazuh Server API (Legacy endpoint)
         params = {"limit": 500}
         if severity:
             params["severity"] = severity
-
         data = self._request("GET", f"/vulnerability/{agent_id}", params=params)
         if data and "affected_items" in data and len(data["affected_items"]) > 0:
+            self.vulnerability_data_status = "fresh"
             return data["affected_items"]
 
-        # Fallback for modern Wazuh (4.14+)
+        # 2. Wazuh Indexer REST API (Port 9200 OpenSearch in Wazuh 4.8+/4.14+)
+        indexer_vulns = self._query_indexer_vulns(agent_id)
+        if indexer_vulns is not None:
+            return indexer_vulns
+
+        # 3. Exported Wazuh Report file
+        file_vulns = self._load_exported_vulns(agent_id, agent_name)
+        if file_vulns:
+            self.vulnerability_data_status = "stale"
+            return file_vulns
+
+        self.vulnerability_data_status = "inferred"
+        # 4. Factual baseline matching with strict package verification
         cache = Settings.load_cve_kb_cache()
         vulns = []
+
+        # Retrieve installed packages from host to prevent false positive inferences
+        if installed_packages is None:
+            installed_packages = self.get_agent_packages(agent_id)
+
+        installed_pkg_names = [str(p.get("name", "")).lower() for p in installed_packages]
+
         for cve_id, info in cache.items():
             kb_map = info.get("kb_map", {})
-            applies = False
-            if not kb_map:
-                applies = True
-            elif os_name:
-                for k in kb_map.keys():
-                    if k.lower() in os_name.lower():
-                        applies = True
-                        break
-            else:
-                applies = True
+            build_map = info.get("build_map", {})
+            target_pkg = info.get("package_name", "").strip().lower()
 
-            if applies:
+            # Rule A: Application-level vulnerability (e.g. WinRAR, Outlook, Chrome)
+            if target_pkg:
+                # Must actually be installed on the machine
+                matching_pkg = next((p for p in installed_packages if target_pkg in str(p.get("name", "")).lower()), None)
+                if not matching_pkg:
+                    # Package NOT installed on host -> CANNOT be vulnerable!
+                    continue
+
+                # Package is installed, check version if specified
+                min_safe_ver = info.get("min_safe_version", "")
+                if min_safe_ver:
+                    pkg_ver = str(matching_pkg.get("version", ""))
+                    # Simple version comparison
+                    try:
+                        p_parts = [int(x) for x in re.findall(r'\d+', pkg_ver)]
+                        s_parts = [int(x) for x in re.findall(r'\d+', min_safe_ver)]
+                        if p_parts and s_parts and p_parts >= s_parts:
+                            # Already on safe version or newer
+                            continue
+                    except Exception:
+                        pass
+
                 vulns.append({
                     "cve": cve_id,
-                    "title": info.get("title", ""),
+                    "title": info.get("title", f"{target_pkg} Security Vulnerability"),
                     "severity": info.get("severity", "High"),
                     "cvss": info.get("cvss", 7.5),
                     "status": "ACTIVE"
                 })
+                continue
+
+            # Rule B: OS-level Windows Cumulative Update vulnerability
+            if kb_map or build_map:
+                applies_to_os = False
+                if os_name:
+                    for k in kb_map.keys():
+                        if k.lower() in os_name.lower():
+                            applies_to_os = True
+                            break
+                    if not applies_to_os:
+                        for k in build_map.keys():
+                            if k.lower() in os_name.lower():
+                                applies_to_os = True
+                                break
+
+                if applies_to_os:
+                    vulns.append({
+                        "cve": cve_id,
+                        "title": info.get("title", ""),
+                        "severity": info.get("severity", "High"),
+                        "cvss": info.get("cvss", 7.5),
+                        "status": "ACTIVE"
+                    })
+
         return vulns
 
     def get_agent_hotfixes(self, agent_id: str) -> List[Dict[str, Any]]:
         """Retrieve syscollector hotfix inventory for an agent"""
         data = self._request("GET", f"/syscollector/{agent_id}/hotfixes", params={"limit": 500})
-        if data and "affected_items" in data:
+        if data and "affected_items" in data and len(data["affected_items"]) > 0:
             return data["affected_items"]
         return []
 
@@ -170,6 +326,7 @@ class WazuhClient:
         """Retrieve OS build and architecture info from syscollector with /agents fallback"""
         data = self._request("GET", f"/syscollector/{agent_id}/os")
         if data and "affected_items" in data and len(data["affected_items"]) > 0:
+            self.vulnerability_data_status = "fresh"
             return data["affected_items"][0]
         # Fallback to agent metadata if syscollector hasn't synced OS table
         agent_data = self._request("GET", "/agents", params={"agents_list": agent_id})
@@ -182,7 +339,7 @@ class WazuhClient:
     def get_agent_packages(self, agent_id: str) -> List[Dict[str, Any]]:
         """Retrieve installed application packages from syscollector"""
         data = self._request("GET", f"/syscollector/{agent_id}/packages", params={"limit": 500})
-        if data and "affected_items" in data:
+        if data and "affected_items" in data and len(data["affected_items"]) > 0:
             return data["affected_items"]
         return []
 
@@ -190,3 +347,42 @@ class WazuhClient:
         """Trigger Wazuh agent restart to force inventory sync"""
         data = self._request("PUT", f"/agents/{agent_id}/restart")
         return data is not None
+
+    def check_wazuh_health(self):
+        import socket
+        res = {
+            'manager': {'url': self.api_url, 'port': 55000, 'user': Settings.WAZUH_API_USER, 'authenticated': False, 'active_agents': 0, 'status': 'OFFLINE'},
+            'indexer': {'url': Settings.WAZUH_INDEXER_URL or 'https://10.0.55.249:9200', 'port': 9200, 'user': Settings.WAZUH_INDEXER_USER or 'Not configured', 'accessible': False, 'status': 'OFFLINE_OR_FIREWALLED'},
+            'dashboard': {'url': Settings.WAZUH_DASHBOARD_URL, 'port': 443, 'accessible': False, 'status': 'OFFLINE'}
+        }
+        try:
+            if self.authenticate():
+                agents = self.get_agents()
+                res['manager']['authenticated'] = True
+                res['manager']['active_agents'] = len(agents)
+                res['manager']['status'] = 'CONNECTED'
+        except Exception as e:
+            res['manager']['error'] = str(e)
+
+        s = socket.socket()
+        s.settimeout(2.0)
+        try:
+            s.connect(('10.0.55.249', 9200))
+            res['indexer']['accessible'] = True
+            res['indexer']['status'] = 'PORT_OPEN'
+        except Exception as e:
+            res['indexer']['error'] = str(e)
+        finally:
+            s.close()
+
+        s2 = socket.socket()
+        s2.settimeout(2.0)
+        try:
+            s2.connect(('10.0.55.249', 443))
+            res['dashboard']['accessible'] = True
+            res['dashboard']['status'] = 'CONNECTED'
+        except Exception as e:
+            res['dashboard']['error'] = str(e)
+        finally:
+            s2.close()
+        return res

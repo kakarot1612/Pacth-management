@@ -1,4 +1,20 @@
 import argparse
+import threading
+from functools import wraps
+
+_SCAN_LOCK = threading.Lock()
+
+def exclusive_scan(fn):
+    @wraps(fn)
+    def guarded(*args, **kwargs):
+        if not _SCAN_LOCK.acquire(blocking=False):
+            raise RuntimeError("Another full scan is already running")
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            _SCAN_LOCK.release()
+    return guarded
+
 import sys
 import json
 from pathlib import Path
@@ -64,6 +80,7 @@ def test_connection():
     else:
         print("[-] Không thể xác thực với Wazuh API. Kiểm tra lại thông tin trong .env.")
 
+@exclusive_scan
 def run_scan(mock: bool = False):
     """Run full vulnerability detection and Rule #4 cross-validation"""
     print("[*] Starting vulnerability audit and cross-validation cycle...")
@@ -115,15 +132,18 @@ def run_scan(mock: bool = False):
                 os_info=srv["os"],
                 cve_mapper=cve_mapper
             )
+            res["data_status"] = "demo"
             audit_results.append(res)
     else:
         # Live Wazuh Connection
         client = WazuhClient()
         if not client.authenticate():
             print("[-] Cannot authenticate to Wazuh API. Aborting live scan.")
-            return
+            raise RuntimeError("Wazuh authentication failed")
 
         agents = client.get_agents(status="active", os_filter="windows")
+        if not agents:
+            raise RuntimeError("No active Windows agents; no verified fleet snapshot")
         print(f"[+] Found {len(agents)} active Windows agents.")
 
         for agent in agents:
@@ -137,7 +157,8 @@ def run_scan(mock: bool = False):
             if os_info:
                 inner_os = os_info.get("os") if isinstance(os_info.get("os"), dict) else os_info
                 agent_os_name = inner_os.get("name") or inner_os.get("os_name", "")
-            vulns = client.get_agent_vulnerabilities(a_id, os_name=agent_os_name)
+            packages = client.get_agent_packages(a_id)
+            vulns = client.get_agent_vulnerabilities(a_id, os_name=agent_os_name, installed_packages=packages, agent_name=a_name)
 
             res = VulnerabilityValidator.audit_agent(
                 agent_id=a_id,
@@ -148,6 +169,7 @@ def run_scan(mock: bool = False):
                 cve_mapper=cve_mapper,
                 agent_ip=agent.get("ip", "")
             )
+            res["data_status"] = getattr(client, "vulnerability_data_status", "unknown")
             audit_results.append(res)
 
     # Check for P1 alerts & dispatch notifications

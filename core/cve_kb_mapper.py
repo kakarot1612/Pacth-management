@@ -49,10 +49,7 @@ class CveKbMapper:
                     if prod_key.lower() in product_name.lower():
                         matched_build = b
                         break
-            if not matched_kb and kb_map:
-                matched_kb = next(iter(kb_map.values()))
-            if not matched_build and build_map:
-                matched_build = next(iter(build_map.values()))
+            # Never select another product's patch when the OS is unknown or unmatched.
 
             result["kb"] = matched_kb
             result["min_build"] = matched_build

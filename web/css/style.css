@@ -840,59 +840,74 @@ body {
 }
 
 /* ==========================================================================
-   Modals (Apple macOS Sheet Design)
+/* ==========================================================================
+   Modals (Modern Centered Dialog Design with Fixed Viewport & Blur)
    ========================================================================== */
-.modal-overlay {
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: var(--modal-backdrop);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999;
-    padding: 24px;
-    animation: fadeIn 0.2s ease-out;
+.modal, .modal-overlay {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(15, 23, 42, 0.6) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+    display: none;
+    justify-content: center !important;
+    align-items: center !important;
+    z-index: 99999 !important;
+    padding: 24px !important;
+    animation: modalFadeIn 0.2s ease-out;
 }
 
-@keyframes fadeIn {
+@keyframes modalFadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
 }
 
-.modal-container {
-    background: #ffffff;
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-xl);
-    width: 760px;
-    max-width: 95%;
-    max-height: 88vh;
-    display: flex;
-    flex-direction: column;
-    box-shadow: var(--shadow-modal);
-    z-index: 10000;
-    overflow: hidden;
-    animation: popUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+.modal-content, .modal-container {
+    background: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 14px !important;
+    width: 780px !important;
+    max-width: 95vw !important;
+    max-height: 88vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0,0,0,0.2) !important;
+    z-index: 100000 !important;
+    overflow: hidden !important;
+    position: relative !important;
+    margin: auto !important;
+    animation: modalPopUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-@keyframes popUp {
-    from { transform: scale(0.96) translateY(12px); opacity: 0; }
+@keyframes modalPopUp {
+    from { transform: scale(0.95) translateY(18px); opacity: 0; }
     to { transform: scale(1) translateY(0); opacity: 1; }
 }
 
 .modal-container-lg {
-    width: 1100px;
-    max-width: 96%;
+    width: 1100px !important;
+    max-width: 96vw !important;
 }
 
 .modal-header {
     padding: 18px 24px;
-    border-bottom: 1px solid var(--divider);
+    border-bottom: 1px solid #e2e8f0;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: var(--bg-surface-secondary);
+    background: #f8fafc;
+    flex-shrink: 0;
+}
+.modal-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
 }
 .modal-title-wrap {
     display: flex;
@@ -913,22 +928,24 @@ body {
 }
 
 .modal-close {
-    background: var(--bg-surface-tertiary);
+    background: #e2e8f0;
     border: none;
-    color: var(--text-secondary);
-    font-size: 14px;
-    width: 28px;
-    height: 28px;
+    color: #475569;
+    font-size: 20px;
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: var(--spring-transition);
+    line-height: 1;
+    transition: all 0.15s ease;
 }
 .modal-close:hover {
-    background: #e5e5ea;
-    color: var(--text-primary);
+    background: #cbd5e1;
+    color: #0f172a;
+    transform: scale(1.05);
 }
 
 .modal-body {
@@ -936,17 +953,19 @@ body {
     overflow-y: auto;
     font-size: 13.5px;
     line-height: 1.65;
-    color: var(--text-primary);
+    color: #334155;
     background: #ffffff;
+    flex: 1;
 }
 
 .modal-footer {
     padding: 16px 24px;
-    border-top: 1px solid var(--divider);
+    border-top: 1px solid #e2e8f0;
     display: flex;
     justify-content: flex-end;
     gap: 10px;
-    background: var(--bg-surface-secondary);
+    background: #f8fafc;
+    flex-shrink: 0;
 }
 
 /* Modal Table Styling (Audit Logs) */
@@ -1081,4 +1100,995 @@ body {
         max-height: none;
         position: static;
     }
+    .exec-grid {
+        grid-template-columns: 1fr !important;
+    }
+    .trends-flex-body {
+        flex-direction: column !important;
+    }
 }
+
+/* ==========================================================================
+   Enterprise Patch State & Trends Dashboard (Executive View)
+   ========================================================================== */
+
+/* Sub Navigation Tabs */
+.sub-nav-bar {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.sub-nav-tabs {
+    display: flex;
+    gap: 8px;
+}
+
+.sub-nav-tab {
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sub-nav-tab:hover {
+    color: #0284c7;
+}
+
+.sub-nav-tab.active {
+    color: #0284c7;
+    font-weight: 600;
+    border-bottom-color: #0284c7;
+}
+
+/* Sub Action Bar */
+.sub-action-bar {
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sub-action-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #0284c7;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sub-action-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sub-tool-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #475569;
+    transition: all 0.15s ease;
+}
+
+.sub-tool-btn:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #0284c7;
+}
+
+/* Executive Grid Layout */
+.exec-grid {
+    display: grid;
+    grid-template-columns: 290px 1fr;
+    gap: 16px;
+    padding: 16px 24px;
+}
+
+.exec-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.exec-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid #edf2f7;
+    background: #ffffff;
+}
+
+.exec-card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0;
+}
+
+.exec-card-icon {
+    font-size: 12px;
+    color: #94a3b8;
+    cursor: pointer;
+}
+
+.exec-card-body {
+    padding: 14px;
+}
+
+/* Metrics List in Left Column */
+.exec-metric-row {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.exec-metric-num {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0284c7;
+}
+
+.exec-metric-label {
+    font-size: 12px;
+    color: #475569;
+    font-weight: 500;
+}
+
+.exec-progress-block {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.exec-progress-label {
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.exec-progress-bar-bg {
+    height: 7px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.exec-progress-bar-fill {
+    height: 100%;
+    background: #0284c7;
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+
+/* Patch Trends Container (Right Top) */
+.trends-sub-tabs {
+    display: flex;
+    gap: 16px;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0 14px;
+    background: #ffffff;
+}
+
+.trends-sub-tab {
+    padding: 8px 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: #64748b;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+}
+
+.trends-sub-tab.active {
+    color: #0284c7;
+    font-weight: 600;
+    border-bottom-color: #0284c7;
+}
+
+.trends-flex-body {
+    display: flex;
+    gap: 20px;
+    padding: 16px;
+    align-items: center;
+}
+
+.donut-section {
+    flex: 0 0 310px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.donut-chart-svg {
+    width: 140px;
+    height: 140px;
+    transform: rotate(-90deg);
+}
+
+.donut-center-info {
+    font-size: 11px;
+    color: #475569;
+    line-height: 1.4;
+}
+
+.donut-center-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 6px;
+}
+
+.donut-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10.5px;
+    color: #64748b;
+    margin-bottom: 3px;
+}
+
+.legend-square {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+.timeline-section {
+    flex: 1;
+    position: relative;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.timeline-svg-wrap {
+    flex: 1;
+    height: 150px;
+    position: relative;
+}
+
+.timeline-legend {
+    width: 80px;
+    font-size: 10px;
+    color: #64748b;
+}
+
+.timeline-legend-title {
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 4px;
+}
+
+/* Top 10 Critical Patches Table (Right Bottom) */
+.top-patches-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.top-patches-table th {
+    text-align: left;
+    padding: 8px 12px;
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 11px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.top-patches-table td {
+    padding: 7px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    vertical-align: middle;
+}
+
+.top-patches-table tr:hover {
+    background: #f8fafc;
+}
+
+.patch-name-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: #0284c7;
+}
+
+.patch-vendor-icon {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.risk-col-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.risk-bar-bg {
+    width: 100px;
+    height: 8px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.risk-bar-fill {
+    height: 100%;
+    background: #0284c7;
+    border-radius: 4px;
+}
+
+.risk-val-text {
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    min-width: 28px;
+    text-align: right;
+}
+
+.exec-pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+    padding: 10px 16px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    font-size: 11px;
+    color: #64748b;
+}
+
+.exec-page-select {
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    background: #ffffff;
+    color: #334155;
+}
+
+/* ==========================================================================
+   OpManager Vulnerability Manager Plus Design System (Enterprise Theme)
+   ========================================================================== */
+
+/* Top Navy Header */
+.vmp-header {
+    background-color: #1a273d !important;
+    color: #ffffff;
+    padding: 0 20px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #0f172a;
+    position: sticky;
+    top: 0;
+    z-index: 300;
+}
+
+.vmp-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vmp-logo-icon {
+    font-size: 20px;
+    color: #38bdf8;
+}
+
+.vmp-brand-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #ffffff;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+}
+
+.vmp-brand-sub {
+    font-size: 10.5px;
+    color: #94a3b8;
+    margin-left: 6px;
+    font-weight: 400;
+}
+
+.vmp-top-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+}
+
+.vmp-nav-item {
+    padding: 0 14px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    color: #cbd5e1;
+    cursor: pointer;
+    text-decoration: none;
+    border-bottom: 3px solid transparent;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.vmp-nav-item:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.vmp-nav-item.active {
+    color: #ffffff;
+    font-weight: 600;
+    background: #243552;
+    border-bottom-color: #38bdf8;
+}
+
+.vmp-header-tools {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vmp-tool-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #e2e8f0;
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s ease;
+}
+
+.vmp-tool-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+}
+
+.vmp-tool-btn.primary {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
+    font-weight: 600;
+}
+
+.vmp-tool-btn.primary:hover {
+    background: #0369a1;
+}
+
+/* Sub-Navigation Bar */
+.vmp-subnav {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    height: 44px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.vmp-subnav-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 100%;
+}
+
+.vmp-subnav-tab {
+    height: 100%;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    border: none;
+    background: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.vmp-subnav-tab:hover {
+    color: #0f172a;
+}
+
+.vmp-subnav-tab.active {
+    color: #0284c7;
+    font-weight: 600;
+    border-bottom-color: #0284c7;
+}
+
+/* 4 Top KPI Cards */
+.vmp-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding: 20px 24px 12px 24px;
+}
+
+.vmp-kpi-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 18px 22px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    position: relative;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.vmp-kpi-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.vmp-kpi-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.vmp-kpi-num {
+    font-size: 34px;
+    font-weight: 700;
+    color: #0369a1;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+
+.vmp-kpi-select {
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: #475569;
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.vmp-kpi-label {
+    font-size: 13px;
+    color: #475569;
+    font-weight: 500;
+    margin-top: 8px;
+}
+
+/* Middle Widgets Row */
+.vmp-widgets-row {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr 1.1fr;
+    gap: 16px;
+    padding: 8px 24px;
+}
+
+.vmp-widget-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.vmp-widget-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.vmp-widget-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.vmp-widget-body {
+    padding: 16px 18px;
+    flex: 1;
+}
+
+/* Heatmap Table for Vulnerability Age Matrix */
+.vmp-heatmap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    text-align: center;
+}
+
+.vmp-heatmap-table th {
+    padding: 6px 4px;
+    font-weight: 600;
+    font-size: 11px;
+    color: #64748b;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.vmp-heatmap-table td {
+    padding: 8px 4px;
+    border: 1px solid #f1f5f9;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.vmp-heatmap-table td:hover {
+    opacity: 0.85;
+}
+
+.vmp-heatmap-rowlabel {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 500;
+    color: #475569;
+    padding-left: 6px !important;
+    background: #f8fafc;
+    border-right: 1px solid #e2e8f0 !important;
+}
+
+/* Bottom Row (Timeline + News) */
+.vmp-bottom-row {
+    display: grid;
+    grid-template-columns: 1.8fr 1.2fr;
+    gap: 16px;
+    padding: 8px 24px 24px 24px;
+}
+
+/* News List */
+.vmp-news-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.vmp-news-item:last-child {
+    border-bottom: none;
+}
+
+.vmp-news-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.vmp-news-dot.red {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+.vmp-news-dot.blue {
+    background: #e0f2fe;
+    color: #0284c7;
+}
+
+.vmp-news-dot.yellow {
+    background: #fef3c7;
+    color: #d97706;
+}
+
+.vmp-news-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #1e293b;
+    line-height: 1.35;
+}
+
+.vmp-news-date {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 4px;
+}
+
+/* ==========================================================================
+   Screenshot 2: Host Details Drilldown View (ManageEngine Systems View)
+   ========================================================================== */
+
+.vmp-host-view {
+    padding: 16px 24px;
+}
+
+.vmp-host-banner {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 16px 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    margin-bottom: 14px;
+}
+
+.vmp-host-banner-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.vmp-btn-back {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.vmp-btn-back:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.vmp-host-name-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.vmp-host-badges-row {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    padding: 12px 18px;
+    border-radius: 6px;
+}
+
+.vmp-host-pill-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.vmp-host-pill-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #0284c7;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+.vmp-host-pill-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.vmp-host-pill-sub {
+    font-size: 11px;
+    color: #64748b;
+}
+
+/* Host Sub-Tabs */
+.vmp-host-tabs {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px 6px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.vmp-host-tab-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.vmp-host-tab {
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #64748b;
+    border: none;
+    background: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.vmp-host-tab:hover {
+    color: #0f172a;
+}
+
+.vmp-host-tab.active {
+    color: #0284c7;
+    font-weight: 600;
+    border-bottom-color: #0284c7;
+}
+
+.vmp-host-tab-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Security Overview Table (Screenshot 2) */
+.vmp-overview-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.vmp-overview-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 16px;
+}
+
+.vmp-overview-grid {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    row-gap: 14px;
+    column-gap: 16px;
+    font-size: 13px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 18px;
+}
+
+.vmp-ov-label {
+    color: #475569;
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    padding-right: 12px;
+}
+
+.vmp-ov-label::after {
+    content: ":";
+    color: #94a3b8;
+}
+
+.vmp-ov-val {
+    color: #0f172a;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* 4 Mini Donut Charts in Screenshot 2 */
+.vmp-threat-summary-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.vmp-mini-donut-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 16px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.vmp-mini-donut-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 12px;
+}
+
+/* ==========================================================================
+   Screenshot 3: Security Configurations View
+   ========================================================================== */
+
+.vmp-secconfig-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+    padding: 8px 24px 24px 24px;
+}
+
+.vmp-gauges-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.vmp-gauge-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 18px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.vmp-gauge-card:hover {
+    border-color: #38bdf8;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.12);
+    transform: translateY(-2px);
+}
+
+.vmp-gauge-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 12px;
+}
+

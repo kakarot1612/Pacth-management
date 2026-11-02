@@ -39,3 +39,7 @@ logs/*
 .DS_Store
 Thumbs.db
 *.swp
+
+# Local access-control database
+config/auth_users.json
+config/auth_users.json.*.tmp

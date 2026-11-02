@@ -33,11 +33,17 @@ logger = logging.getLogger("PatchManager")
 
 class Settings:
     """Central configuration loader for Patch Management System"""
-    # Wazuh API
+    # Wazuh API (Port 55000 Manager REST API)
     WAZUH_API_URL = os.getenv("WAZUH_API_URL", "https://127.0.0.1:55000").rstrip("/")
     WAZUH_API_USER = os.getenv("WAZUH_API_USER", "wazuh")
     WAZUH_API_PASSWORD = os.getenv("WAZUH_API_PASSWORD", "")
     WAZUH_VERIFY_SSL = os.getenv("WAZUH_VERIFY_SSL", "false").lower() in ("true", "1", "yes")
+
+    # Wazuh Indexer API (Port 9200 OpenSearch Backend for Vulnerability State Indices in 4.8+/4.14+)
+    WAZUH_INDEXER_URL = os.getenv("WAZUH_INDEXER_URL", "").rstrip("/")
+    WAZUH_INDEXER_USER = os.getenv("WAZUH_INDEXER_USER", "")
+    WAZUH_INDEXER_PASSWORD = os.getenv("WAZUH_INDEXER_PASSWORD", "")
+    WAZUH_VULNS_FILE = Path(os.getenv("WAZUH_VULNS_FILE", str(CONFIG_DIR / "wazuh_vulnerabilities.csv")))
 
     # WSUS
     WSUS_SERVER_FQDN = os.getenv("WSUS_SERVER_FQDN", "localhost")
@@ -54,9 +60,23 @@ class Settings:
     # MSRC API
     MSRC_API_KEY = os.getenv("MSRC_API_KEY", "")
 
-    # Google Gemini AI Advisor
+    # OpenRouter AI Advisor (DeepSeek / Any Model)
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+    OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-v4.1-flash:batch")
+    OPENROUTER_API_URL = os.getenv("OPENROUTER_API_URL", "https://openrouter.ai/api/v1/chat/completions")
+    OPENROUTER_SITE_URL = os.getenv("OPENROUTER_SITE_URL", "http://localhost:8080")
+    OPENROUTER_APP_NAME = os.getenv("OPENROUTER_APP_NAME", "Best Pacific Patch Management")
+
+    # Provider is explicit; never silently send telemetry to another vendor.
+    AI_PROVIDER = os.getenv("AI_PROVIDER", "gemini").lower()
+    WEB_BIND_HOST = os.getenv("WEB_BIND_HOST", "0.0.0.0")
+    AUTH_ENABLED = os.getenv("AUTH_ENABLED", "false").lower() in ("true", "1", "yes")
+    WAZUH_DASHBOARD_URL = os.getenv("WAZUH_DASHBOARD_URL", "https://10.0.55.249:443").rstrip("/")
+    DATA_MAX_AGE_MINUTES = int(os.getenv("DATA_MAX_AGE_MINUTES", "60"))
+
+    # Google Gemini AI Advisor (Alternative)
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
     # SLA Thresholds (Hours / Days)
     SLA_P1_CRITICAL_HOURS = int(os.getenv("SLA_P1_CRITICAL_HOURS", "72"))
@@ -73,6 +93,12 @@ class Settings:
     ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL", "")
     ALERT_WEBHOOK_TYPE = os.getenv("ALERT_WEBHOOK_TYPE", "teams").lower()
     ENABLE_ALERTS = os.getenv("ENABLE_ALERTS", "false").lower() in ("true", "1", "yes")
+
+    # Threat Intelligence & CVE MCP Server (mukul975/cve-mcp-server on 10.0.55.240)
+    CVE_MCP_URL = os.getenv("CVE_MCP_URL", "http://10.0.55.240:8001/mcp").rstrip("/")
+    CVE_MCP_HOST = os.getenv("CVE_MCP_HOST", "sec-mcp.bestpacific.vn")
+    CVE_MCP_ENABLED = os.getenv("CVE_MCP_ENABLED", "true").lower() in ("true", "1", "yes")
+    CVE_MCP_TIMEOUT = int(os.getenv("CVE_MCP_TIMEOUT", "10"))
 
     # Files
     EXCEPTIONS_FILE = Path(os.getenv("EXCEPTIONS_FILE", str(CONFIG_DIR / "exceptions.json")))
@@ -102,3 +128,8 @@ class Settings:
     @classmethod
     def is_wazuh_configured(cls):
         return bool(cls.WAZUH_API_USER and cls.WAZUH_API_PASSWORD and cls.WAZUH_API_URL != "https://127.0.0.1:55000")
+
+    @classmethod
+    def is_ai_configured(cls):
+        return bool((cls.AI_PROVIDER == "gemini" and cls.GEMINI_API_KEY) or
+                    (cls.AI_PROVIDER == "openrouter" and cls.OPENROUTER_API_KEY))

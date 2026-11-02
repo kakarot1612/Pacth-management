@@ -1,8 +1,12 @@
 import json
+import threading
+from core.storage import atomic_write_text
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from core.config import LOGS_DIR, logger
+
+_AUDIT_LOCK = threading.Lock()
 
 AUDIT_LOG_FILE = LOGS_DIR / "audit_trail.json"
 
@@ -15,7 +19,7 @@ class AuditLogger:
     @classmethod
     def _load_logs(cls) -> List[Dict[str, Any]]:
         if not AUDIT_LOG_FILE.exists():
-            return cls._seed_initial_logs()
+            return []
         try:
             with open(AUDIT_LOG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -29,8 +33,7 @@ class AuditLogger:
         try:
             # Keep up to 2000 most recent audit entries
             trimmed = logs[-2000:]
-            with open(AUDIT_LOG_FILE, "w", encoding="utf-8") as f:
-                json.dump(trimmed, f, indent=2, ensure_ascii=False)
+            atomic_write_text(AUDIT_LOG_FILE, json.dumps(trimmed, indent=2, ensure_ascii=False))
         except Exception as e:
             logger.error(f"Error saving audit_trail.json: {e}")
 
@@ -58,9 +61,10 @@ class AuditLogger:
             "source": source
         }
 
-        logs = cls._load_logs()
-        logs.append(entry)
-        cls._save_logs(logs)
+        with _AUDIT_LOCK:
+            logs = cls._load_logs()
+            logs.append(entry)
+            cls._save_logs(logs)
         logger.info(f"[AUDIT] [{action}] Server: {server_name} | {details}")
         return entry
 

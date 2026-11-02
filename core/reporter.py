@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any
+from core.storage import atomic_write_text
 from core.config import Settings, REPORTS_DIR, logger
 
 class AuditReporter:
@@ -32,7 +33,11 @@ class AuditReporter:
 
         timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        data_status = 'fresh' if audit_results and all(a.get('data_status') == 'fresh' for a in audit_results) else 'partial'
+        if audit_results and all(a.get('data_status') == 'demo' for a in audit_results):
+            data_status = 'demo'
         report_data = {
+            "data_status": data_status,
             "generated_at": timestamp_str,
             "metrics": {
                 "total_servers": total_servers,
@@ -45,7 +50,8 @@ class AuditReporter:
                 "critical_compliance_percent": critical_compliance,
                 "target_compliance_percent": Settings.TARGET_COMPLIANCE_RATE,
                 "target_critical_compliance_percent": Settings.TARGET_CRITICAL_COMPLIANCE_RATE,
-                "compliance_status": "COMPLIANT" if compliance_rate >= Settings.TARGET_COMPLIANCE_RATE else "ACTION_REQUIRED",
+                "compliance_status": ("UNVERIFIED" if data_status != "fresh" else
+                    ("COMPLIANT" if compliance_rate >= Settings.TARGET_COMPLIANCE_RATE else "ACTION_REQUIRED")),
                 "active_exceptions_count": len(exceptions)
             },
             "servers": audit_results,
@@ -57,8 +63,7 @@ class AuditReporter:
         latest_json = REPORTS_DIR / "latest_report.json"
         with open(json_file, "w", encoding="utf-8") as f:
             json.dump(report_data, f, indent=2, ensure_ascii=False)
-        with open(latest_json, "w", encoding="utf-8") as f:
-            json.dump(report_data, f, indent=2, ensure_ascii=False)
+        atomic_write_text(latest_json, json.dumps(report_data, indent=2, ensure_ascii=False))
 
         # Generate HTML Dashboard
         html_file = REPORTS_DIR / f"patch_dashboard_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
@@ -66,8 +71,7 @@ class AuditReporter:
         html_content = cls._build_html_dashboard(report_data)
         with open(html_file, "w", encoding="utf-8") as f:
             f.write(html_content)
-        with open(latest_html, "w", encoding="utf-8") as f:
-            f.write(html_content)
+        atomic_write_text(latest_html, html_content)
 
         logger.info(f"Generated compliance report: {html_file}")
         return report_data
