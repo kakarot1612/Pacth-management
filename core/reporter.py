@@ -12,11 +12,14 @@ class AuditReporter:
     def generate_report(cls, audit_results: List[Dict[str, Any]], exceptions: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Calculates global metrics and builds reporting objects"""
         total_servers = len(audit_results)
-        total_vulns = sum(a.get("summary", {}).get("total", 0) for a in audit_results)
-        confirmed_vulns = sum(a.get("summary", {}).get("confirmed_vulnerable", 0) for a in audit_results)
-        remediated_pending_rescan = sum(a.get("summary", {}).get("remediated_pending_rescan", 0) for a in audit_results)
-        solved_vulns = sum(a.get("summary", {}).get("solved", 0) for a in audit_results)
-        critical_confirmed = sum(a.get("summary", {}).get("critical_confirmed", 0) for a in audit_results)
+        # Exclude servers with INCOMPLETE_TELEMETRY from compliance denominators so missing telemetry doesn't distort audit
+        valid_servers = [a for a in audit_results if a.get("inventory_status") != "INCOMPLETE_TELEMETRY"]
+        total_vulns = sum(a.get("summary", {}).get("total", 0) for a in valid_servers)
+        confirmed_vulns = sum(a.get("summary", {}).get("confirmed_vulnerable", 0) for a in valid_servers)
+        remediated_pending_rescan = sum(a.get("summary", {}).get("remediated_pending_rescan", 0) for a in valid_servers)
+        solved_vulns = sum(a.get("summary", {}).get("solved", 0) for a in valid_servers)
+        critical_confirmed = sum(a.get("summary", {}).get("critical_confirmed", 0) for a in valid_servers)
+        incomplete_inventory_count = sum(1 for a in audit_results if a.get("inventory_status") == "INCOMPLETE_TELEMETRY")
 
         # Compliance rate calculations
         # Effective solved = Solved + Remediated (Pending Wazuh Rescan)
@@ -52,7 +55,9 @@ class AuditReporter:
                 "target_critical_compliance_percent": Settings.TARGET_CRITICAL_COMPLIANCE_RATE,
                 "compliance_status": ("UNVERIFIED" if data_status != "fresh" else
                     ("COMPLIANT" if compliance_rate >= Settings.TARGET_COMPLIANCE_RATE else "ACTION_REQUIRED")),
-                "active_exceptions_count": len(exceptions)
+                "active_exceptions_count": len(exceptions),
+                "reboot_pending_count": sum(1 for a in audit_results if a.get("reboot_pending")),
+                "incomplete_inventory_count": incomplete_inventory_count
             },
             "servers": audit_results,
             "exceptions": exceptions

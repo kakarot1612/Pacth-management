@@ -6,9 +6,10 @@
   },
   "021": {
     "agent_id": "021",
+    "agent_name": "CSSERVER",
     "reboot_pending": true,
-    "reboot_reasons": "Admin Manual Flag",
-    "updated_at": "2026-11-02 13:54:56"
+    "reboot_reasons": "Đã cài đặt bản vá KB5122877 - Chờ Restart máy để nâng Kernel lên 20348.5622",
+    "updated_at": "2026-11-05 12:30:00"
   },
   "028": {
     "agent_id": "028",

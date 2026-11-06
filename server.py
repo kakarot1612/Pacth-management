@@ -214,7 +214,6 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 except Exception:
                     pass
 
-            from core.threat_intel import ThreatIntelEngine
             for s in servers:
                 s["wsus_group"] = default_group
                 aid = str(s.get("agent_id"))
@@ -224,20 +223,6 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 else:
                     s["reboot_pending"] = bool(s.get("reboot_pending", False))
                     s["reboot_reasons"] = s.get("reboot_reasons", "")
-
-                # Enrich active & pending vulnerabilities with Threat Intelligence
-                for v in s.get("vulnerabilities", []):
-                    c_id = v.get("cve")
-                    if c_id and not v.get("threat_intel"):
-                        try:
-                            v["threat_intel"] = ThreatIntelEngine.get_cve_intel(
-                                c_id,
-                                title=v.get("title", ""),
-                                severity=v.get("severity", "High"),
-                                cvss=float(v.get("cvss", 7.5))
-                            )
-                        except Exception:
-                            pass
 
             self._send_json(200, {"servers": servers})
             return
@@ -289,9 +274,60 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                         data = json.load(f)
                 except Exception:
                     pass
-            data["approvals"] = {key: entry for key, entry in data.get("approvals", {}).items()
-                                 if entry.get("source") == "WSUS"}
+            # Return all valid approved KBs
+            data["approvals"] = {
+                key: entry for key, entry in data.get("approvals", {}).items()
+                if entry.get("status") == "APPROVED" or "WSUS" in str(entry.get("source", "")).upper()
+            }
             self._send_json(200, data)
+            return
+
+        elif path == "/api/sca":
+            sca_file = BASE_DIR / "reports" / "sca_cache.json"
+            params = parse_qs(parsed.query)
+            force_refresh = params.get("refresh", ["0"])[0] == "1"
+
+            data = None
+            if sca_file.exists() and not force_refresh:
+                try:
+                    with open(sca_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception:
+                    data = None
+
+            if not data:
+                try:
+                    from scripts.generate_sca_cache import build_sca_cache
+                    data = build_sca_cache()
+                except Exception as e:
+                    logger.error(f"Failed to generate SCA cache: {e}")
+                    data = {"error": str(e), "summary": {}, "top_rules": [], "gauges": {}}
+
+            self._send_json(200, data or {})
+            return
+
+        elif path == "/api/software-inventory":
+            inv_file = BASE_DIR / "reports" / "software_inventory.json"
+            params = parse_qs(parsed.query)
+            force_refresh = params.get("refresh", ["0"])[0] == "1"
+
+            data = None
+            if inv_file.exists() and not force_refresh:
+                try:
+                    with open(inv_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception:
+                    data = None
+
+            if not data:
+                try:
+                    from scripts.generate_software_inventory import build_software_inventory
+                    data = build_software_inventory()
+                except Exception as e:
+                    logger.error(f"Failed to generate software inventory: {e}")
+                    data = []
+
+            self._send_json(200, {"packages": data or [], "total": len(data or [])})
             return
 
         elif path == "/api/env-status":
@@ -462,7 +498,8 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                         hotfixes=hotfixes,
                         os_info=os_info,
                         cve_mapper=cve_mapper,
-                        agent_ip=agent_ip
+                        agent_ip=agent_ip,
+                        packages=packages
                     )
 
                     new_server_audit["data_status"] = getattr(client, "vulnerability_data_status", "unknown")
@@ -504,16 +541,29 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
         elif path == "/api/approve-kb":
             kb = payload.get("kb", "").strip().upper()
             group = payload.get("group", "BPVN-Server").strip()
-            from core.wsus_client import change_approval
-            try:
-                change_approval(kb, group, approve=True)
-            except ValueError as e:
-                self._send_json(400, {"success": False, "message": str(e)})
-                return
-            except Exception as e:
-                logger.error(f"WSUS operation failed: {e}")
-                self._send_json(502, {"success": False, "message": "WSUS chưa xác nhận thao tác. Kiểm tra kết nối, WSUS Console và quyền tài khoản chạy app."})
-                return
+            manual_confirm = payload.get("manual_confirm", False)
+            source_note = "WSUS Console (Đồng bộ thủ công)" if manual_confirm else "WSUS Remote API"
+
+            if not manual_confirm:
+                from core.wsus_client import change_approval
+                try:
+                    change_approval(kb, group, approve=True)
+                except ValueError as e:
+                    self._send_json(400, {"success": False, "message": str(e)})
+                    return
+                except Exception as e:
+                    err_msg = str(e)
+                    logger.error(f"WSUS operation failed: {err_msg}")
+                    self._send_json(502, {
+                        "success": False,
+                        "message": f"Lỗi kết nối WSUS: {err_msg}",
+                        "details": err_msg,
+                        "can_manual_confirm": True,
+                        "kb": kb,
+                        "group": group
+                    })
+                    return
+
             approvals_file = BASE_DIR / "config" / "wsus_approvals.json"
             appr_data = {"approvals": {}}
             if approvals_file.exists():
@@ -525,7 +575,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
 
             appr_key = f"{kb}_{group}"
             existing = appr_data.get("approvals", {}).get(appr_key)
-            if existing and existing.get("status") == "APPROVED" and existing.get("source") == "WSUS":
+            if existing and existing.get("status") == "APPROVED" and not manual_confirm:
                 self._send_json(200, {
                     "success": False,
                     "already_approved": True,
@@ -541,7 +591,8 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
                 "group": group,
                 "status": "APPROVED",
                 "source": "WSUS",
-                "approved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                "approved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "note": source_note
             }
             try:
                 with open(approvals_file, "w", encoding="utf-8") as f:
@@ -695,7 +746,7 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
             logger.info(f"Triggering WinRM remote install for {kb} on {server_name} ({target_host})")
             from core.winrm_client import WinRMClient
             winrm_result = WinRMClient.trigger_remote_install(target_host, kb_number=kb)
-            fallback_cmd = f"powershell -ExecutionPolicy Bypass -File scripts\\Install-PendingUpdates.ps1 -KbNumber {kb}"
+            fallback_cmd = "powershell -ExecutionPolicy Bypass -Command \"$s=New-Object -Com Microsoft.Update.Session; $u=$s.CreateUpdateSearcher().Search('IsInstalled=0 and Type=\'Software\'').Updates; if($u.Count -gt 0){$i=$s.CreateUpdateInstaller(); $i.Updates=$u; $res=$i.Install(); Write-Host 'Da cai dat thanh cong! Result: ' $res.ResultCode}else{Write-Host 'Khong co ban va cho cai dat (hoac da cai roi).'}\""
             if winrm_result.get("success"):
                 data = winrm_result.get("data", {})
                 reboot_req = bool(data.get("RebootRequired", False))

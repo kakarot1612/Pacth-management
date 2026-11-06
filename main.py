@@ -167,7 +167,8 @@ def run_scan(mock: bool = False):
                 hotfixes=hotfixes,
                 os_info=os_info,
                 cve_mapper=cve_mapper,
-                agent_ip=agent.get("ip", "")
+                agent_ip=agent.get("ip", ""),
+                packages=packages
             )
             res["data_status"] = getattr(client, "vulnerability_data_status", "unknown")
             audit_results.append(res)

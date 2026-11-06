@@ -14,6 +14,7 @@ class VulnerabilityValidator:
     STATUS_REMEDIATED_PENDING_RESCAN = "REMEDIATED_PENDING_WAZUH_RESCAN"
     STATUS_SUPERSEDED = "SUPERSEDED_OR_MITIGATED"
     STATUS_SOLVED = "SOLVED"
+    STATUS_UNVERIFIED_NO_TELEMETRY = "UNVERIFIED_NO_TELEMETRY"
 
     @staticmethod
     def _is_build_greater_or_equal(current_build: str, required_build: str) -> bool:
@@ -92,37 +93,47 @@ class VulnerabilityValidator:
                     return {
                         "cve": cve_id,
                         "status": cls.STATUS_REMEDIATED_PENDING_RESCAN,
-                        "reason": f"KB {norm_expected_kb} đã cài đặt thành công và OS Build ({current_build}) đã đáp ứng. Wazuh đang chờ chu kỳ cập nhật inventory.",
+                        "reason": f"KB {norm_expected_kb} đã cài đặt thành công và OS Build ({current_build}) đã đáp ứng. Lỗ hổng đã được khắc phục hoàn toàn trên Kernel.",
                         "action_required": False,
                         "reboot_required": False,
-                        "recommended_action": "Bản vá đã có hiệu lực. Chờ chu kỳ quét Wazuh tiếp theo hoặc quét lại agent."
+                        "recommended_action": "Bản vá đã có hiệu lực trên hệ điều hành. Chờ chu kỳ quét Wazuh tiếp theo cập nhật DB."
                     }
-                elif is_server_reboot:
-                    logger.info(f"Rule #4 Match: {cve_id} has {norm_expected_kb} installed/staged, waiting for host reboot.")
+                else:
+                    # Hotfix is physically detected in Syscollector, but OS build has not bumped yet:
+                    # Windows requires a reboot to complete kernel component activation!
+                    logger.info(f"Auto-detected Hotfix Installed (Pending Reboot): {cve_id} has {norm_expected_kb} in hotfixes, waiting for host reboot.")
                     return {
                         "cve": cve_id,
-                        "status": cls.STATUS_CONFIRMED_VULNERABLE,
-                        "reason": f"Bản vá {norm_expected_kb} đã được cài đặt trên máy chủ qua WSUS. {server_reboot_note or 'Đang chờ khởi động lại máy chủ (Pending Restart) để hoàn tất kích hoạt.'}",
-                        "action_required": True,
+                        "status": cls.STATUS_REMEDIATED_PENDING_RESCAN,
+                        "reason": f"Bản vá {norm_expected_kb} đã được cài đặt trên máy chủ (Wazuh Syscollector xác nhận). Đang chờ khởi động lại máy chủ (Pending Restart) để nạp kernel build mới.",
+                        "action_required": False,
                         "reboot_required": True,
                         "recommended_action": f"Khởi động lại (Restart) máy chủ để hoàn tất kích hoạt bản vá {norm_expected_kb}."
                     }
-                else:
-                    # Staged or downloaded by WSUS / Windows Update, but NOT installed yet (waiting for 'Install now' / installation trigger)
-                    logger.info(f"WSUS Staged/Ready: {norm_expected_kb} present in inventory, but host build {current_build} < {min_build} and no reboot pending.")
-                    return {
-                        "cve": cve_id,
-                        "status": cls.STATUS_CONFIRMED_VULNERABLE,
-                        "reason": f"Bản vá {norm_expected_kb} đã được WSUS phê duyệt và đẩy về máy chủ (gói đã tải về sẵn sàng cài đặt - Updates ready to install). Cần thực hiện Cài đặt ngay (Install now) trên máy chủ.",
-                        "action_required": True,
-                        "reboot_required": False,
-                        "recommended_action": f"Kích hoạt cài đặt bản vá {norm_expected_kb} trên máy chủ (bấm 'Install now' hoặc Trigger Install)."
-                    }
+
+        # Determine whether this is an OS Kernel/Servicing patch or Third-Party Application
+        cat = str(vuln.get("category", "")).upper()
+        pkg_name = str(vuln.get("package_name", ""))
+        current_build = os_info.get("build") if os_info else ""
+
+        is_os_vuln = False
+        if cat == "OS" or "windows server" in pkg_name.lower():
+            is_os_vuln = True
+        elif cat in ("PACKAGES", "APPLICATION") or (pkg_name and not ("windows server" in pkg_name.lower() or "windows 10" in pkg_name.lower())):
+            is_os_vuln = False
+        elif expected_kb:
+            is_os_vuln = True
+        elif min_build:
+            try:
+                major = int(str(min_build).split(".")[0])
+                if major >= 10000 or (major == 10 and len(str(min_build).split(".")) >= 3 and int(str(min_build).split(".")[2]) >= 10000):
+                    is_os_vuln = True
+            except Exception:
+                is_os_vuln = False
 
         # 2. Check if Cumulative Update (LCU) covers the OS build
         # Windows cumulative updates supersede and contain all previous security fixes
-        current_build = os_info.get("build") if os_info else ""
-        if min_build and current_build:
+        if is_os_vuln and min_build and current_build:
             if cls._is_build_greater_or_equal(current_build, min_build):
                 logger.info(f"Rule #4 Match (LCU Supersedence): {cve_id} fixed on OS Build {current_build} >= {min_build}.")
                 return {
@@ -130,26 +141,53 @@ class VulnerabilityValidator:
                     "status": cls.STATUS_REMEDIATED_PENDING_RESCAN,
                     "reason": f"OS Kernel Build {current_build} đã bao gồm bản vá {expected_kb or 'LCU'} (yêu cầu tối thiểu: {min_build}). Bản vá tích lũy (Cumulative Update) đã khắc phục lỗ hổng này.",
                     "action_required": False,
-                    "recommended_action": "Đã vá thành công qua Bản vá tích lũy mới hơn. Chờ Wazuh đồng bộ lại cơ sở dữ liệu lỗ hổng."
+                    "recommended_action": "Đã vá thành công qua Bản vá tích lũy mới hơn. Chờ Wazuh đồng bộ lại cơ sở dữ liệu lỗ hổng.",
+                    "is_os_vuln": True,
+                    "category": "OS"
                 }
 
-        # 3. Non-KB / 3rd-Party Application Vulnerability (e.g. WinRAR, Chrome, Moniker Link)
+        # 3. Third-Party Software / Application Vulnerability (e.g. Wireshark, Foxit Reader, WinRAR, 7-Zip)
+        if not is_os_vuln:
+            app_name = pkg_name or vuln.get("package_name") or "Phần mềm ứng dụng bên thứ 3"
+            installed_ver = vuln.get("package_version", "")
+            safe_ver = vuln.get("min_safe_version", "")
+            ver_text = f" (phiên bản đang cài: {installed_ver}, yêu cầu bản an toàn: >= {safe_ver})" if installed_ver or safe_ver else ""
+
+            return {
+                "cve": cve_id,
+                "status": cls.STATUS_CONFIRMED_VULNERABLE,
+                "reason": f"Lỗ hổng thuộc phần mềm ứng dụng '{app_name}'{ver_text}. Đây là ứng dụng bên thứ 3 (Non-OS), KHÔNG phát hành qua gói Windows Cumulative Update của WSUS. Cần cập nhật trực tiếp phần mềm {app_name} lên phiên bản an toàn hoặc gỡ cài đặt khỏi máy chủ nếu không sử dụng.",
+                "action_required": True,
+                "recommended_action": f"Nâng cấp trực tiếp phần mềm {app_name} lên phiên bản an toàn (>= {safe_ver or 'mới nhất'}) hoặc gỡ cài đặt khỏi máy chủ.",
+                "is_os_vuln": False,
+                "category": "Packages",
+                "package_name": app_name,
+                "package_version": installed_ver,
+                "min_safe_version": safe_ver,
+                "expected_kb": None
+            }
+
+        # 4. Confirmed Vulnerable OS Patch (Without specific mapped KB)
         if not expected_kb:
             return {
                 "cve": cve_id,
                 "status": cls.STATUS_CONFIRMED_VULNERABLE,
-                "reason": "Lỗ hổng thuộc phần mềm ứng dụng (Non-OS KB / Tầng ứng dụng), không phát hành qua gói Windows Cumulative Update của WSUS. Cần nâng cấp trực tiếp phần mềm lên phiên bản an toàn, gỡ bỏ ứng dụng không dùng hoặc bấm [Dự đoán & Khắc phục qua AI] để áp dụng biện pháp cô lập.",
+                "reason": f"Lỗ hổng thuộc Hệ điều hành Windows (yêu cầu OS Build tối thiểu {min_build or 'mới hơn'}, hiện tại {current_build or 'N/A'}). Cần cập nhật gói Windows Cumulative Update (LCU) qua WSUS.",
                 "action_required": True,
-                "recommended_action": "Cập nhật trực tiếp phiên bản phần mềm hoặc đăng ký Ngoại lệ (Exception) theo hướng dẫn của AI."
+                "recommended_action": f"Phê duyệt và triển khai bản vá tích lũy (Cumulative Update LCU) cho Windows Server qua WSUS.",
+                "is_os_vuln": True,
+                "category": "OS"
             }
 
-        # 4. Confirmed Vulnerable OS Patch
+        # 5. Confirmed Vulnerable OS Patch (With specific mapped KB)
         return {
             "cve": cve_id,
             "status": cls.STATUS_CONFIRMED_VULNERABLE,
             "reason": f"Bản vá dự kiến ({expected_kb}) chưa tìm thấy trên máy chủ và OS Build ({current_build or 'N/A'}) thấp hơn bản vá ({min_build or 'N/A'}).",
             "action_required": True,
-            "recommended_action": f"Phê duyệt và triển khai bản vá {expected_kb} qua WSUS theo kế hoạch."
+            "recommended_action": f"Phê duyệt và triển khai bản vá {expected_kb} qua WSUS theo kế hoạch.",
+            "is_os_vuln": True,
+            "category": "OS"
         }
 
     @classmethod
@@ -161,7 +199,8 @@ class VulnerabilityValidator:
         hotfixes: List[Dict[str, Any]],
         os_info: Optional[Dict[str, Any]],
         cve_mapper,
-        agent_ip: str = ""
+        agent_ip: str = "",
+        packages: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         Performs complete cross-validation for a specific agent.
@@ -178,6 +217,59 @@ class VulnerabilityValidator:
             inner_os = os_info.get("os") if isinstance(os_info.get("os"), dict) else os_info
             os_name = inner_os.get("name") or inner_os.get("os_name", "")
             os_build = str(inner_os.get("build") or inner_os.get("os_build", ""))
+
+        pkg_count = len(packages) if packages is not None else 0
+        syscollector_empty = (len(installed_kb_list) == 0 and pkg_count == 0)
+
+        # Integrity Guard: When Syscollector has 0 hotfixes and 0 packages,
+        # telemetry is incomplete. NEVER assert false positive vulnerabilities or missing KBs!
+        if syscollector_empty:
+            logger.warning(f"Syscollector telemetry missing for {agent_name} (ID: {agent_id}). Flagging INCOMPLETE_TELEMETRY without false vulnerability claims.")
+            validated_vulns = []
+            for v in vulnerabilities:
+                cve_id = v.get("cve", "")
+                mapping = cve_mapper.resolve_cve(cve_id, product_name=os_name)
+                validated_vulns.append({
+                    "cve": cve_id,
+                    "status": cls.STATUS_UNVERIFIED_NO_TELEMETRY,
+                    "reason": f"Wazuh Syscollector trên máy chủ {agent_name} chưa đồng bộ dữ liệu Hotfix và Phần mềm (0 Hotfix, 0 Package). Không đủ bằng chứng kiểm toán để xác định lỗ hổng.",
+                    "action_required": False,
+                    "reboot_required": False,
+                    "recommended_action": f"Kiểm tra dịch vụ Wazuh Agent trên máy chủ {agent_name} ({agent_ip or 'IP'}): Restart-Service wazuh-agent để đồng bộ lại Syscollector.",
+                    "wazuh_status": v.get("wazuh_status", v.get("status", "ACTIVE")),
+                    "severity": v.get("severity", "Medium"),
+                    "cvss": v.get("cvss", 0.0),
+                    "title": mapping.get("title", v.get("title", "")),
+                    "expected_kb": mapping.get("kb"),
+                    "min_build": mapping.get("min_build"),
+                    "published_date": v.get("published", v.get("published_date", "")),
+                    "detected_date": v.get("detected_at", v.get("detected_date", ""))
+                })
+            return {
+                "agent_id": agent_id,
+                "agent_name": agent_name,
+                "ip": agent_ip,
+                "os_name": os_name,
+                "os_build": os_build,
+                "installed_hotfix_count": 0,
+                "installed_hotfixes": [],
+                "packages_count": 0,
+                "missing_kbs": [],
+                "reboot_pending": False,
+                "reboot_reasons": "",
+                "inventory_status": "INCOMPLETE_TELEMETRY",
+                "inventory_note": "Wazuh Syscollector chưa đồng bộ danh sách Hotfix và Phần mềm từ máy chủ này. Cần kiểm tra dịch vụ Wazuh Agent trên node.",
+                "summary": {
+                    "total": len(vulnerabilities),
+                    "confirmed_vulnerable": 0,
+                    "remediated_pending_rescan": 0,
+                    "solved": 0,
+                    "critical_confirmed": 0,
+                    "high_confirmed": 0,
+                    "unverified_telemetry": len(vulnerabilities)
+                },
+                "vulnerabilities": validated_vulns
+            }
 
         validated_vulns = []
         counts = {
@@ -210,7 +302,14 @@ class VulnerabilityValidator:
             cve_id = v.get("cve", "")
             mapping = cve_mapper.resolve_cve(cve_id, product_name=os_name)
             expected_kb = mapping.get("kb")
+            # Pull min_build: only assign condition_min_build if it's an OS candidate
+            is_os_candidate = (
+                str(v.get("category", "")).upper() == "OS" or
+                "windows server" in str(v.get("package_name", "")).lower()
+            )
             min_build = mapping.get("min_build")
+            if not min_build and is_os_candidate:
+                min_build = v.get("condition_min_build")
 
             validation = cls.validate_vulnerability(
                 vuln=v,
@@ -222,13 +321,24 @@ class VulnerabilityValidator:
                 server_reboot_note=server_reboot_note
             )
 
+            # Resolve real title: prioritize non-empty mapping title, then Wazuh title/description
+            real_title = mapping.get("title")
+            if not real_title or real_title == "Unknown Vulnerability":
+                real_title = v.get("title") or v.get("description") or f"Lỗ hổng bảo mật {cve_id}"
+
             validation["wazuh_status"] = v.get("wazuh_status", v.get("status", "ACTIVE"))
             validation["severity"] = v.get("severity", "Medium")
             validation["cvss"] = v.get("cvss", 0.0)
-            validation["title"] = mapping.get("title", v.get("title", ""))
+            validation["title"] = real_title
             validation["expected_kb"] = expected_kb
             validation["min_build"] = min_build
             validation["published_date"] = v.get("published", v.get("published_date", ""))
+            validation["detected_date"] = v.get("detected_at", v.get("detected_date", ""))
+            validation["category"] = validation.get("category") or v.get("category", "")
+            validation["is_os_vuln"] = bool(validation.get("is_os_vuln") if "is_os_vuln" in validation else (validation.get("category") == "OS"))
+            validation["package_name"] = validation.get("package_name") or v.get("package_name") or ""
+            validation["package_version"] = validation.get("package_version") or v.get("package_version") or ""
+            validation["min_safe_version"] = validation.get("min_safe_version") or v.get("min_safe_version") or ""
 
             status = validation["status"]
 
@@ -264,15 +374,18 @@ class VulnerabilityValidator:
         # Check if ANY vulnerability genuinely requires a reboot
         needs_reboot = any(v.get("reboot_required") for v in validated_vulns)
 
-        # If the server was marked reboot_pending, but the OS build now satisfies the updates:
+        # Auto-clear reboot_pending when:
+        # 1. No vulnerabilities require a reboot (needs_reboot is False), AND
+        # 2. Either no mapped vulnerabilities remain (all solved/clean), OR all mapped KBs satisfy min_build!
         mapped_vulns = [v for v in validated_vulns if v.get("expected_kb")]
-        build_verified = bool(mapped_vulns) and all(
+        build_verified = (not mapped_vulns) or all(
             v.get("min_build") and cls._is_build_greater_or_equal(os_build, v["min_build"])
             for v in mapped_vulns
         )
-        if is_server_reboot and not needs_reboot and build_verified:
+
+        if (is_server_reboot or reboot_file.exists()) and not needs_reboot and build_verified:
             is_server_reboot = False
-            logger.info(f"Auto-cleared reboot_pending for {agent_name} (ID: {agent_id}) - Host build {os_build} satisfies all installed KBs.")
+            logger.info(f"Auto-cleared reboot_pending for {agent_name} (ID: {agent_id}) - Host build {os_build} satisfies all updates or zero pending vulns.")
             if reboot_file.exists() and str(agent_id) in rdata:
                 try:
                     rdata[str(agent_id)]["reboot_pending"] = False
@@ -282,8 +395,8 @@ class VulnerabilityValidator:
                 except Exception as e:
                     logger.error(f"Error updating reboot_status.json: {e}")
 
-        # Compute pending reboot flag
-        reboot_pending = is_server_reboot or needs_reboot
+        # Compute pending reboot flag: true if genuinely needing reboot, or explicit flag not yet verified
+        reboot_pending = needs_reboot or (is_server_reboot and not build_verified)
         reboot_reasons = []
         if is_server_reboot and server_reboot_note:
             reboot_reasons.append(server_reboot_note)
@@ -302,9 +415,12 @@ class VulnerabilityValidator:
             "os_build": os_build,
             "installed_hotfix_count": len(installed_kb_list),
             "installed_hotfixes": installed_kb_list,
+            "packages_count": pkg_count,
             "missing_kbs": missing_kbs,
             "reboot_pending": reboot_pending,
             "reboot_reasons": "; ".join(sorted(list(set(reboot_reasons)))) if reboot_reasons else "",
+            "inventory_status": "HEALTHY",
+            "inventory_note": "",
             "summary": counts,
             "vulnerabilities": validated_vulns
         }

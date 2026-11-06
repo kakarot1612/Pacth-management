@@ -22,7 +22,7 @@ class CveKbMapper:
         result = {
             "cve": cve_id,
             "kb": None,
-            "title": "Unknown Vulnerability",
+            "title": "",
             "severity": "Medium",
             "cvss": 0.0,
             "source": "Unresolved"

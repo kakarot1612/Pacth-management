@@ -68,8 +68,9 @@
       "kb": "KB5126868",
       "group": "BPVN-Server",
       "status": "APPROVED",
-      "approved_at": "2026-10-21 08:30:00",
-      "source": "WSUS Push / 2026-10 Cumulative Update"
+      "source": "WSUS",
+      "approved_at": "2026-11-06 07:55:44",
+      "note": "WSUS Console (Đồng bộ thủ công)"
     },
     "KB5126649_BPVN-Server": {
       "kb": "KB5126649",

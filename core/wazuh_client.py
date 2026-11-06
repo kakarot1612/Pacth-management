@@ -121,45 +121,102 @@ class WazuhClient:
             return data["affected_items"]
         return []
 
-    def _query_indexer_vulns(self, agent_id: str) -> List[Dict[str, Any]]:
-        """Query Wazuh Indexer (OpenSearch on port 9200) for real-time vulnerability states"""
-        if not Settings.WAZUH_INDEXER_URL:
+    def _query_indexer_vulns(self, agent_id: str, agent_name: str = "") -> List[Dict[str, Any]]:
+        """
+        Query Wazuh Indexer strictly via OpenSearch REST API on port 9200.
+        Uses standard HTTP Basic Authentication directly to the Indexer engine.
+        """
+        if not Settings.WAZUH_INDEXER_URL or not Settings.WAZUH_INDEXER_USER:
             return None
+
+        # Build search query matching by agent.id or agent.name (resilient to re-enrollment)
+        should_clauses = [{"term": {"agent.id": str(agent_id)}}]
+        if agent_name:
+            should_clauses.append({"term": {"agent.name": str(agent_name)}})
+        query = {
+            "query": {
+                "bool": {
+                    "should": should_clauses,
+                    "minimum_should_match": 1
+                }
+            },
+            "size": 500
+        }
+
         try:
-            url = f"{Settings.WAZUH_INDEXER_URL}/wazuh-states-vulnerabilities-*/_search"
+            indexer_url = Settings.WAZUH_INDEXER_URL.rstrip('/')
+            url = f"{indexer_url}/wazuh-states-vulnerabilities-*/_search"
             auth = (Settings.WAZUH_INDEXER_USER, Settings.WAZUH_INDEXER_PASSWORD) if Settings.WAZUH_INDEXER_USER else None
-            query = {
-                "query": {
-                    "bool": {
-                        "must": [
-                            {"term": {"agent.id": str(agent_id)}}
-                        ]
-                    }
-                },
-                "size": 500
-            }
-            resp = requests.post(url, auth=auth, json=query, verify=self.verify_ssl, timeout=10)
+            resp = requests.post(url, auth=auth, json=query, verify=self.verify_ssl, timeout=5)
             if resp.status_code == 200:
                 hits = resp.json().get("hits", {}).get("hits", [])
                 vulns = []
+                seen = set()
                 for h in hits:
                     src = h.get("_source", {})
                     v_info = src.get("vulnerability", {})
-                    vulns.append({
-                        "cve": v_info.get("cve") or v_info.get("id"),
-                        "title": v_info.get("title") or v_info.get("name", ""),
-                        "severity": v_info.get("severity", "High"),
-                        "cvss": float(v_info.get("cvss", {}).get("cvss3", {}).get("base_score", 7.5)),
-                        "status": "ACTIVE"
-                    })
-                total = resp.json().get("hits", {}).get("total", len(hits))
-                total = total.get("value", len(hits)) if isinstance(total, dict) else total
-                self.vulnerability_data_status = "partial" if total > len(hits) else "fresh"
+                    cve = v_info.get("cve") or v_info.get("id")
+                    if cve and cve not in seen:
+                        seen.add(cve)
+                        score_obj = v_info.get("score", {})
+                        base_score = score_obj.get("base") if isinstance(score_obj, dict) else 7.5
+                        if not base_score:
+                            cvss_obj = v_info.get("cvss", {})
+                            base_score = cvss_obj.get("cvss3", {}).get("base_score", 7.5) if isinstance(cvss_obj, dict) else 7.5
+
+                        pkg_info = src.get("package", {})
+                        pkg_name = pkg_info.get("name", "")
+                        pkg_ver = pkg_info.get("version", "")
+                        category = str(v_info.get("category", "")).strip()
+                        is_os_cat = (category.upper() == "OS" or "windows server" in pkg_name.lower())
+
+                        condition = v_info.get("scanner", {}).get("condition", "")
+                        cond_ver = None
+                        if condition:
+                            m = re.search(r'(\d+(?:\.\d+)+)', condition)
+                            if m:
+                                cond_ver = m.group(1)
+
+                        # Only treat condition as an OS kernel build if category is OS and build number looks like Windows NT
+                        os_min_build = None
+                        app_min_safe_ver = None
+                        if is_os_cat:
+                            if cond_ver:
+                                try:
+                                    parts = [int(p) for p in cond_ver.split(".")]
+                                    # e.g. 10.0.17763.8276 or 17763.8276
+                                    if parts[0] >= 10000 or (parts[0] == 10 and len(parts) >= 3 and parts[2] >= 10000):
+                                        os_min_build = cond_ver
+                                except Exception:
+                                    pass
+                        else:
+                            app_min_safe_ver = cond_ver
+
+                        real_title = v_info.get("description") or v_info.get("title") or f"Lỗ hổng bảo mật {cve}"
+
+                        vulns.append({
+                            "cve": cve,
+                            "title": real_title,
+                            "severity": v_info.get("severity", "High"),
+                            "cvss": float(base_score or 7.5),
+                            "status": "ACTIVE",
+                            "category": category or ("OS" if is_os_cat else "Packages"),
+                            "package_name": pkg_name,
+                            "package_version": pkg_ver,
+                            "min_safe_version": app_min_safe_ver,
+                            "condition_min_build": os_min_build,
+                            "published_date": v_info.get("published_at") or "",
+                            "detected_date": v_info.get("detected_at") or ""
+                        })
                 if vulns:
-                    logger.info(f"Retrieved {len(vulns)} real vulnerabilities from Wazuh Indexer for agent {agent_id}")
-                return vulns
+                    self.vulnerability_data_status = "fresh"
+                    logger.info(f"Retrieved {len(vulns)} real vulnerabilities strictly via Wazuh Indexer port 9200 for {agent_name or agent_id}")
+                    return vulns
+            else:
+                logger.warning(f"Wazuh Indexer (port 9200) returned HTTP {resp.status_code}")
         except Exception as e:
-            logger.debug(f"Wazuh Indexer query skipped: {e}")
+            logger.error(f"Wazuh Indexer query on port 9200 failed: {e}")
+
         return None
 
     def _load_exported_vulns(self, agent_id: str, agent_name: str = "") -> List[Dict[str, Any]]:
@@ -232,9 +289,9 @@ class WazuhClient:
             self.vulnerability_data_status = "fresh"
             return data["affected_items"]
 
-        # 2. Wazuh Indexer REST API (Port 9200 OpenSearch in Wazuh 4.8+/4.14+)
-        indexer_vulns = self._query_indexer_vulns(agent_id)
-        if indexer_vulns is not None:
+        # 2. Wazuh Indexer REST API (Port 9200 OpenSearch / Port 443 Dashboard Proxy)
+        indexer_vulns = self._query_indexer_vulns(agent_id, agent_name=agent_name)
+        if indexer_vulns is not None and len(indexer_vulns) > 0:
             return indexer_vulns
 
         # 3. Exported Wazuh Report file
