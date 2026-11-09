@@ -815,8 +815,8 @@ function renderHostPatchSummaryBar(vulns, server) {
         <div style="background:linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);border:1px solid #bbf7d0;border-radius:10px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:10px;flex-wrap:wrap;">
                 <div style="font-weight:700;font-size:13.5px;color:#166534;display:flex;align-items:center;gap:8px;">
-                    <span>📦 TỔNG HỢP TRẠNG THÁI BẢN VÁ CHO MÁY CHỦ NÀY</span>
-                    <span style="font-size:11.5px;font-weight:normal;color:#15803d;">(Phân định rõ bản vá Windows OS đã cài và lỗ hổng cần xử lý)</span>
+                    <span>📦 TỔNG HỢP BẢN VÁ WSUS CHO MÁY CHỦ NÀY</span>
+                    <span style="font-size:11.5px;font-weight:normal;color:#15803d;">(Phê duyệt 1 lần duy nhất cho toàn bộ các lỗ hổng trùng gói bản vá)</span>
                 </div>
                 ${unapprovedCount > 1 ? `
                     <button class="btn btn-sm btn-primary" onclick="window.approveAllServerKbs()" style="font-weight:700;">

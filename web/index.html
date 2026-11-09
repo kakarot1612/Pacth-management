@@ -680,7 +680,19 @@
 
             <!-- Host Tab Content: Vulnerabilities (Real CVE Cards) -->
             <div id="hostContentVulns" class="vmp-overview-card" style="display:none;">
-                <div class="vmp-overview-title">Active & Remediated Vulnerabilities</div>
+                <!-- Batch Patch Approval Summary Bar -->
+                <div id="hostPatchSummaryBar" style="margin-bottom:16px;"></div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px;flex-wrap:wrap;">
+                    <div class="vmp-overview-title" style="margin:0;">Active & Remediated Vulnerabilities</div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="text" id="hostVulnSearchInput" oninput="window.filterHostVulns()" placeholder="🔍 Tìm CVE / mô tả..." style="padding:6px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;width:200px;" />
+                        <select id="hostVulnFilterSelect" onchange="window.filterHostVulns()" style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;background:#fff;color:#334155;">
+                            <option value="all">Tất cả lỗ hổng</option>
+                        </select>
+                    </div>
+                </div>
+
                 <div id="vulnCardsContainer" style="display:flex;flex-direction:column;gap:12px;">
                     <!-- Populated dynamically via renderVulnCards -->
                 </div>
