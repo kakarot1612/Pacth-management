@@ -732,75 +732,163 @@
         </section>
 
         <!-- ====================================================================
-             VIEW 5: PATCHES STATE & TRENDS (Executive View)
+             VIEW 5: PATCHES STATE & FLEET REMEDIATION (Modern Patch Management)
              ==================================================================== -->
-        <section id="viewExecutivePatches" class="exec-grid" style="display:none;">
-            <!-- Left Column: Patch Metrics -->
-            <div class="exec-left-col">
-                <div class="exec-card">
-                    <div class="exec-card-header">
-                        <h3 class="exec-card-title">Patch Metrics</h3>
-                        <span class="exec-card-icon">⛶</span>
+        <section id="viewExecutivePatches" style="display:none;padding:20px 24px;">
+            <!-- Top KPI Cards for Fleet Patch Health -->
+            <div class="vmp-kpi-row" style="margin-bottom:20px;">
+                <!-- KPI 1: Installed Hotfixes -->
+                <div class="vmp-kpi-card" style="border-left:4px solid #10b981;cursor:pointer;" onclick="switchPatchSubTab('installed')">
+                    <div class="vmp-kpi-top">
+                        <span class="vmp-kpi-title">Bản Vá Đã Cài Đặt (Fleet Hotfixes)</span>
+                        <span class="vmp-kpi-trend trend-up">🛡️ Đã xác minh</span>
                     </div>
-                    <div class="exec-card-body">
-                        <div class="exec-metric-row">
-                            <span class="exec-metric-num" id="execTotalPatches">68,089</span>
-                            <span class="exec-metric-label">Total Patches</span>
-                        </div>
-                        <div class="exec-metric-row">
-                            <span class="exec-metric-num" id="execPatchesConsumed">10,341</span>
-                            <span class="exec-metric-label">Patches Consumed</span>
-                        </div>
-                        <div class="exec-metric-row">
-                            <span class="exec-metric-num" id="execPatchesInstalled" style="color:#0284c7;">957</span>
-                            <span class="exec-metric-label">Patches Installed</span>
-                        </div>
-                        <div class="exec-metric-row">
-                            <span class="exec-metric-num" id="execPatchesNotRequired">10,032</span>
-                            <span class="exec-metric-label">Patches Not Required</span>
-                        </div>
-                    </div>
+                    <div class="vmp-kpi-val" id="patchKpiInstalled" style="color:#059669;">957</div>
+                    <div class="vmp-kpi-desc" id="patchKpiInstalledSub">381 mã KB duy nhất trên 18/19 máy chủ</div>
                 </div>
 
-                <div class="exec-card">
-                    <div class="exec-card-header">
-                        <h3 class="exec-card-title">Patches Health</h3>
-                        <span class="exec-card-icon">⛶</span>
+                <!-- KPI 2: Missing WSUS KBs -->
+                <div class="vmp-kpi-card" style="border-left:4px solid #0284c7;cursor:pointer;" onclick="switchPatchSubTab('wsus')">
+                    <div class="vmp-kpi-top">
+                        <span class="vmp-kpi-title">Bản Vá OS Thiếu (WSUS Patches)</span>
+                        <span class="vmp-kpi-trend" style="background:#e0f2fe;color:#0284c7;border:1px solid #bae6fd;">⚡ Cần đẩy WSUS</span>
                     </div>
-                    <div class="exec-card-body" style="display:flex;align-items:center;justify-content:center;position:relative;">
-                        <svg width="180" height="180" viewBox="0 0 100 100">
-                            <circle cx="50" cy="50" r="38" fill="none" stroke="#f1f5f9" stroke-width="14" />
-                            <circle id="execDonutRing" cx="50" cy="50" r="38" fill="none" stroke="#0284c7" stroke-width="14" stroke-dasharray="238.7" stroke-dashoffset="0" />
-                            <text x="50" y="48" text-anchor="middle" font-size="14" font-weight="700" fill="#0f172a" id="execPatchesInstalled90">957</text>
-                            <text x="50" y="60" text-anchor="middle" font-size="7" fill="#64748b">Installed</text>
-                        </svg>
+                    <div class="vmp-kpi-val" id="patchKpiMissingWsus" style="color:#0284c7;">3</div>
+                    <div class="vmp-kpi-desc" id="patchKpiMissingWsusSub">Ảnh hưởng 3 máy chủ • Khắc phục 16 CVEs</div>
+                </div>
+
+                <!-- KPI 3: Vulnerable Third-Party Apps -->
+                <div class="vmp-kpi-card" style="border-left:4px solid #ea580c;cursor:pointer;" onclick="switchPatchSubTab('thirdparty')">
+                    <div class="vmp-kpi-top">
+                        <span class="vmp-kpi-title">Phần Mềm Lỗi Thời (Non-WSUS Apps)</span>
+                        <span class="vmp-kpi-trend" style="background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;">⚠️ Cần Nâng Cấp</span>
                     </div>
+                    <div class="vmp-kpi-val" id="patchKpiThirdParty" style="color:#ea580c;">4</div>
+                    <div class="vmp-kpi-desc" id="patchKpiThirdPartySub">7-Zip, Wireshark, Notepad++, PuTTY (28 CVEs)</div>
+                </div>
+
+                <!-- KPI 4: Pending Reboot Servers -->
+                <div class="vmp-kpi-card" style="border-left:4px solid #f59e0b;cursor:pointer;" onclick="switchPatchSubTab('reboot')">
+                    <div class="vmp-kpi-top">
+                        <span class="vmp-kpi-title">Máy Chủ Chờ Restart (Pending Reboot)</span>
+                        <span class="vmp-kpi-trend" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;">🔄 Cần Khởi Động Lại</span>
+                    </div>
+                    <div class="vmp-kpi-val" id="patchKpiReboot" style="color:#b45309;">2</div>
+                    <div class="vmp-kpi-desc" id="patchKpiRebootSub">Đã cài KB, chờ Restart để kích hoạt Kernel</div>
                 </div>
             </div>
 
-            <!-- Right Column: Top Missing Patches -->
-            <div class="exec-right-col">
-                <div class="exec-card">
-                    <div class="exec-card-header">
-                        <h3 class="exec-card-title">Top 10 Missing Patches</h3>
+            <!-- Main Patch Management Container with Sub-Tabs -->
+            <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,0.03);overflow:hidden;">
+                <!-- Header Toolbar & Subtabs -->
+                <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;background:#ffffff;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+                    <!-- Sub-Navigation Pills -->
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <button class="btn btn-sm btn-primary" id="patchSubTabBtnWsus" onclick="switchPatchSubTab('wsus')" style="font-weight:600;">
+                            🪟 Bản Vá Hệ Điều Hành WSUS <span class="badge" style="background:#ffffff;color:#0284c7;font-weight:700;margin-left:4px;" id="badgeCountWsus">3</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="patchSubTabBtnThirdParty" onclick="switchPatchSubTab('thirdparty')" style="font-weight:600;">
+                            📦 Phần Mềm Bên Thứ 3 <span class="badge" style="background:#fff7ed;color:#ea580c;border:1px solid #fed7aa;font-weight:700;margin-left:4px;" id="badgeCountThirdParty">4</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="patchSubTabBtnReboot" onclick="switchPatchSubTab('reboot')" style="font-weight:600;">
+                            🔄 Máy Chờ Restart <span class="badge" style="background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700;margin-left:4px;" id="badgeCountReboot">2</span>
+                        </button>
+                        <button class="btn btn-sm btn-outline" id="patchSubTabBtnInstalled" onclick="switchPatchSubTab('installed')" style="font-weight:600;">
+                            📋 Tra Cứu 957 Bản Vá Đã Cài
+                        </button>
                     </div>
-                    <div class="exec-card-body" style="padding:0;overflow-x:auto;">
-                        <table class="exec-table">
-                            <thead>
-                                <tr>
-                                    <th>Patch ID / KB</th>
-                                    <th>Advisory Name</th>
-                                    <th>Product</th>
-                                    <th>Severity</th>
-                                    <th>Applicable Hosts</th>
-                                    <th style="text-align:right;">Thao Tác WSUS</th>
-                                </tr>
-                            </thead>
-                            <tbody id="execTopPatchesBody">
-                                <!-- Populated dynamically -->
-                            </tbody>
-                        </table>
+
+                    <!-- Search and Action Controls -->
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="text" id="patchSearchInput" oninput="filterPatchView()" placeholder="🔍 Tìm theo mã KB, phần mềm, máy chủ..." style="padding:7px 12px;border:1px solid #cbd5e1;border-radius:6px;font-size:12px;width:260px;outline:none;" />
+                        <button class="btn btn-sm btn-outline" onclick="loadData(); showToast('Đang làm mới dữ liệu telemetry...');" title="Làm mới trạng thái">
+                            🔄 Làm Mới
+                        </button>
                     </div>
+                </div>
+
+                <!-- Tab Pane 1: WSUS OS Missing Patches Table -->
+                <div id="patchPaneWsus" style="overflow-x:auto;">
+                    <table class="vmp-table" style="width:100%;margin:0;border:none;">
+                        <thead>
+                            <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b;">
+                                <th style="padding:12px 16px;">Mã Gói KB</th>
+                                <th style="padding:12px 16px;">Tên Bản Vá & Khuyến Nghị</th>
+                                <th style="padding:12px 16px;">Hệ Điều Hành</th>
+                                <th style="padding:12px 16px;text-align:center;">Mức Độ & Số CVE</th>
+                                <th style="padding:12px 16px;">Máy Chủ Cần Triển Khai</th>
+                                <th style="padding:12px 16px;text-align:right;">Thao Tác Phê Duyệt WSUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="patchTableBodyWsus">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tab Pane 2: Third-Party Applications Table -->
+                <div id="patchPaneThirdParty" style="display:none;overflow-x:auto;">
+                    <table class="vmp-table" style="width:100%;margin:0;border:none;">
+                        <thead>
+                            <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b;">
+                                <th style="padding:12px 16px;">Ứng Dụng</th>
+                                <th style="padding:12px 16px;">Phiên Bản Đang Cài</th>
+                                <th style="padding:12px 16px;">Phiên Bản Khuyến Nghị</th>
+                                <th style="padding:12px 16px;text-align:center;">Mức Độ Rủi Ro</th>
+                                <th style="padding:12px 16px;">Máy Chủ Bị Ảnh Hưởng</th>
+                                <th style="padding:12px 16px;text-align:right;">Biện Pháp Khắc Phục</th>
+                            </tr>
+                        </thead>
+                        <tbody id="patchTableBodyThirdParty">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tab Pane 3: Pending Reboot Servers Table -->
+                <div id="patchPaneReboot" style="display:none;overflow-x:auto;">
+                    <table class="vmp-table" style="width:100%;margin:0;border:none;">
+                        <thead>
+                            <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b;">
+                                <th style="padding:12px 16px;">Máy Chủ (Hostname)</th>
+                                <th style="padding:12px 16px;">Địa Chỉ IP</th>
+                                <th style="padding:12px 16px;">Hệ Điều Hành & Build</th>
+                                <th style="padding:12px 16px;">Lý Do Cần Restart</th>
+                                <th style="padding:12px 16px;text-align:right;">Thao Tác Quản Trị</th>
+                            </tr>
+                        </thead>
+                        <tbody id="patchTableBodyReboot">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tab Pane 4: Installed Hotfixes Catalog -->
+                <div id="patchPaneInstalled" style="display:none;overflow-x:auto;">
+                    <div style="padding:10px 16px;background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b;display:flex;justify-content:space-between;align-items:center;">
+                        <span>Danh mục 957 bản vá vật lý thu thập từ Wazuh Syscollector trên toàn bộ máy chủ</span>
+                        <span id="patchInstalledCounter" style="font-weight:600;color:#0284c7;">Hiển thị: 0 bản vá</span>
+                    </div>
+                    <table class="vmp-table" style="width:100%;margin:0;border:none;">
+                        <thead>
+                            <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;font-size:12px;color:#64748b;">
+                                <th style="padding:12px 16px;">Mã KB</th>
+                                <th style="padding:12px 16px;">Máy Chủ Đã Cài Đặt</th>
+                                <th style="padding:12px 16px;">Địa Chỉ IP</th>
+                                <th style="padding:12px 16px;">Hệ Điều Hành</th>
+                                <th style="padding:12px 16px;text-align:center;">Trạng Thái Kích Hoạt</th>
+                            </tr>
+                        </thead>
+                        <tbody id="patchTableBodyInstalled">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer Summary Counter -->
+                <div style="padding:12px 20px;border-top:1px solid #e2e8f0;background:#f8fafc;font-size:12px;color:#64748b;display:flex;align-items:center;justify-content:space-between;">
+                    <span id="patchFooterStatus">Nguồn dữ liệu: 100% Wazuh Syscollector & WSUS Console (Zero Mock)</span>
+                    <span>Chu kỳ cập nhật: Định kỳ 30 phút • Mã hóa kết nối AES-256</span>
                 </div>
             </div>
         </section>
@@ -1041,6 +1129,59 @@
     <!-- ====================================================================
          MODALS & TOASTS
          ==================================================================== -->
+
+    <!-- Patch Detail Modal -->
+    <div class="modal" id="patchDetailModal" style="display:none;">
+        <div class="modal-content" style="max-width:820px;">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" id="patchModalTitle">Chi Tiết Bản Vá & Triển Khai</h3>
+                    <div style="font-size:12px;color:var(--text-tertiary);" id="patchModalSub">WSUS Update & Wazuh Telemetry</div>
+                </div>
+                <button class="modal-close" onclick="closePatchModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Meta Info Grid -->
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 16px;margin-bottom:16px;">
+                    <div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600;">Mã bản vá (KB)</div>
+                        <div id="patchModalKb" style="font-size:14px;font-weight:700;color:#0284c7;font-family:var(--font-mono);margin-top:2px;">-</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600;">Hệ điều hành / Nhóm</div>
+                        <div id="patchModalOs" style="font-size:13px;font-weight:600;color:#0f172a;margin-top:2px;">-</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600;">Trạng thái WSUS</div>
+                        <div id="patchModalStatus" style="font-size:13px;font-weight:700;margin-top:2px;">-</div>
+                    </div>
+                </div>
+
+                <!-- Affected Hosts List -->
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:13px;font-weight:600;color:#334155;margin-bottom:8px;">💻 Danh sách Máy chủ cần triển khai:</div>
+                    <div id="patchModalHostsList" style="display:flex;flex-wrap:wrap;gap:8px;max-height:140px;overflow-y:auto;padding:8px;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;"></div>
+                </div>
+
+                <!-- Resolved CVEs List -->
+                <div id="patchModalCveSection" style="margin-bottom:16px;">
+                    <div style="font-size:13px;font-weight:600;color:#dc2626;margin-bottom:8px;">🛡️ Các lỗ hổng được giải quyết (Resolved CVEs):</div>
+                    <div id="patchModalCveList" style="max-height:160px;overflow-y:auto;display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#fff5f5;border:1px solid #fed7aa;border-radius:6px;"></div>
+                </div>
+
+                <!-- Remediation / Deployment Script -->
+                <div>
+                    <div style="font-size:13px;font-weight:600;color:#334155;margin-bottom:6px;">⚡ Lệnh PowerShell kiểm tra / cài đặt qua WinRM:</div>
+                    <pre id="patchModalScript" style="background:#1e293b;color:#f8fafc;padding:12px;border-radius:6px;font-family:var(--font-mono);font-size:12px;overflow-x:auto;max-height:120px;"></pre>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="copyPatchScript()">📋 Sao Chép Script</button>
+                <button class="btn btn-primary" id="patchModalActionBtn">⚡ Phê Duyệt WSUS</button>
+                <button class="btn btn-outline" onclick="closePatchModal()">Đóng</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Software Detail & Risk Drilldown Modal -->
     <div class="modal" id="softwareDetailModal" style="display:none;">
