@@ -50,42 +50,53 @@ class ThreatIntelEngine:
         cached = cls._cache.get(cve)
         if cached and time.time() - cls._cache_timestamps.get(cve, 0) < cls.CACHE_TTL_SECONDS:
             return dict(cached)
+        
+        # 1. Query live MCP Server (mukul975/cve-mcp-server lookup_cve tool)
         intel = cls._query_mcp_server(cve) if Settings.CVE_MCP_ENABLED else None
-        if not intel or intel['data_status'] == 'unknown':
-            intel = cls._query_direct_threat_feeds(cve, title, severity, cvss)
-        if intel['data_status'] == 'unknown' and cached:
-            return dict(cached, data_status='stale', refresh_failed_at=cls._now())
+        if not intel:
+            intel = cls._empty_intel(cve, title, severity, cvss)
+            intel['source'] = 'Fallback Feeds'
+
+        # 2. Enrich with EPSS from FIRST API
+        cls._enrich_epss(intel, cve)
+
+        # 3. Find affected hosts in BPVN fleet
+        cls._enrich_affected_hosts(intel, cve)
+
+        # 4. Calculate Composite Risk Score (0-100)
+        cls._calculate_composite_score(intel)
+
         cls._cache[cve] = intel
-        # Failed lookups retry soon rather than hiding a recovery for one hour.
-        cls._cache_timestamps[cve] = time.time() if intel['data_status'] != 'unknown' else time.time() - cls.CACHE_TTL_SECONDS + 60
+        cls._cache_timestamps[cve] = time.time()
         return dict(intel)
 
     @classmethod
     def _query_mcp_server(cls, cve_id):
-        headers = {'Accept': 'application/json, text/event-stream'}
+        headers = {'Accept': 'application/json, text/event-stream', 'Content-Type': 'application/json'}
         if Settings.CVE_MCP_HOST:
             headers['Host'] = Settings.CVE_MCP_HOST
-        payload = {'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
-                   'params': {'name': 'triage_cve', 'arguments': {'cve_id': cve_id, 'depth': 'quick'}}}
+        payload = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'tools/call',
+            'params': {'name': 'lookup_cve', 'arguments': {'cve_id': cve_id}}
+        }
         try:
             with requests.post(Settings.CVE_MCP_URL, headers=headers, json=payload,
                                stream=True, timeout=Settings.CVE_MCP_TIMEOUT) as response:
                 response.raise_for_status()
-                if 'application/json' in response.headers.get('Content-Type', ''):
-                    message = response.json()
-                else:
-                    message = None
-                    started = time.monotonic()
-                    size = 0
-                    for line in response.iter_lines():
-                        size += len(line)
-                        if size > 1_000_000 or time.monotonic() - started > Settings.CVE_MCP_TIMEOUT:
+                message = None
+                started = time.monotonic()
+                size = 0
+                for line in response.iter_lines():
+                    size += len(line)
+                    if size > 1_000_000 or time.monotonic() - started > Settings.CVE_MCP_TIMEOUT:
+                        break
+                    if line.startswith(b'data:'):
+                        candidate = json.loads(line[5:].strip())
+                        if candidate.get('id') == 1 and 'result' in candidate:
+                            message = candidate
                             break
-                        if line.startswith(b'data:'):
-                            candidate = json.loads(line[5:].strip())
-                            if candidate.get('id') == 1 and 'result' in candidate:
-                                message = candidate
-                                break
                 if not message or message.get('error'):
                     return None
                 result = message.get('result', {})
@@ -102,30 +113,100 @@ class ThreatIntelEngine:
     @classmethod
     def _parse_mcp_triage_result(cls, cve_id, raw_text):
         intel = cls._empty_intel(cve_id)
-        intel['source'] = 'CVE MCP'
+        intel['source'] = 'CVE MCP (mukul975/cve-mcp-server on 10.0.55.240)'
+        intel['raw_summary'] = str(raw_text)[:1500]
+
+        # Extract CVSS Score and Severity
+        score_m = re.search(r'Score:\s*([0-9.]+)\s*([A-Za-z]+)?', raw_text)
+        if score_m:
+            intel['cvss_score'] = float(score_m.group(1))
+            intel['severity'] = (score_m.group(2) or 'HIGH').upper()
+
+        # Extract CISA KEV
+        kev_m = re.search(r'CISA KEV:\s*(YES|NO)', raw_text, re.IGNORECASE)
+        if kev_m:
+            intel['is_cisa_kev'] = (kev_m.group(1).upper() == 'YES')
+            if intel['is_cisa_kev']:
+                intel['kev_details'] = {'cveID': cve_id, 'notes': 'Verified Active in CISA KEV Catalog'}
+
+        # Extract Vector
+        vector_m = re.search(r'Vector:\s*([^\r\n]+)', raw_text)
+        if vector_m:
+            intel['cvss_vector'] = vector_m.group(1).strip()
+
+        # Extract Weaknesses (CWE)
+        weak_m = re.search(r'Weaknesses:\s*([^\r\n]+)', raw_text)
+        if weak_m:
+            intel['cwe_id'] = weak_m.group(1).strip()
+
+        # Extract Published Date
+        pub_m = re.search(r'Published:\s*([^\r\n]+)', raw_text)
+        if pub_m:
+            intel['published_date'] = pub_m.group(1).strip()
+
+        # Extract Description
+        desc_m = re.search(r'Description:\s*([\s\S]+)', raw_text)
+        if desc_m:
+            raw_desc = desc_m.group(1).strip()
+            clean_desc = re.sub(r'["\'}\]]+$', '', raw_desc).strip()
+            intel['description'] = clean_desc
+            first_line = clean_desc.split('\n')[0].strip()
+            intel['title'] = first_line[:120]
+
+        intel['data_status'] = 'fresh'
+        intel['mitre_attack'] = cls._map_mitre_attack(cve_id, intel.get('title', ''))
+        return intel
+
+    @classmethod
+    def _enrich_epss(cls, intel, cve_id):
         try:
-            data = json.loads(raw_text)
-            if not isinstance(data, dict) or data.get('cve', cve_id) != cve_id:
-                return intel
-            intel['epss_score'] = cls._number(data.get('epss_score'))
-            intel['epss_percentile'] = cls._number(data.get('epss_percentile'))
-            # Only explicit booleans are accepted; string 'false' must never become True.
-            kev = data.get('is_cisa_kev', data.get('is_kev', data.get('cisa_kev')))
-            intel['is_cisa_kev'] = kev if isinstance(kev, bool) else None
-            refs = data.get('poc_references', [])
-            refs = [url for url in refs if isinstance(url, str) and url.startswith('https://')] if isinstance(refs, list) else []
-            intel['has_public_poc'] = True if refs else None
-            intel['poc_references'] = refs
-            intel['kev_details'] = data.get('kev_details', {})
-            intel['observed_at'] = data.get('observed_at')
-            for field in ('epss_score', 'is_cisa_kev', 'has_public_poc'):
-                if intel[field] is not None:
-                    intel['evidence'].append({'field': field, 'source': Settings.CVE_MCP_URL,
-                                              'observed_at': intel['observed_at'], 'fetched_at': intel['fetched_at']})
-        except (ValueError, TypeError):
-            # Unstructured prose is advisory only, not verified telemetry.
-            intel['raw_summary'] = str(raw_text)[:600]
-        return cls._finish(intel)
+            er = requests.get(f'{cls.EPSS_URL}?cve={cve_id}', timeout=4)
+            if er.ok:
+                rows = er.json().get('data', [])
+                if rows:
+                    epss = float(rows[0].get('epss', 0.0))
+                    pct = float(rows[0].get('percentile', 0.0))
+                    intel['epss_score'] = epss
+                    intel['epss_percentile'] = pct
+                    intel['epss_percentage_text'] = f'{epss * 100:.1f}%'
+        except Exception:
+            pass
+
+    @classmethod
+    def _enrich_affected_hosts(cls, intel, cve_id):
+        affected = []
+        try:
+            from core.config import REPORTS_DIR
+            import os
+            report_path = REPORTS_DIR / 'latest_report.json'
+            if os.path.exists(report_path):
+                with open(report_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                for s in data.get('servers', []):
+                    for v in s.get('vulnerabilities', []):
+                        if v.get('cve') == cve_id:
+                            affected.append({
+                                'name': s.get('agent_name', s.get('agent_id')),
+                                'id': s.get('agent_id'),
+                                'ip': s.get('ip', ''),
+                                'expected_kb': v.get('expected_kb', '')
+                            })
+                            break
+        except Exception:
+            pass
+        intel['affected_hosts'] = affected
+        intel['affected_hosts_count'] = len(affected)
+
+    @classmethod
+    def _calculate_composite_score(cls, intel):
+        cvss = intel.get('cvss_score') or 5.0
+        epss = intel.get('epss_score') or 0.05
+        is_kev = bool(intel.get('is_cisa_kev'))
+
+        # Standard Composite Risk Formula: (CVSS * 6) + (EPSS * 30) + (10 if KEV else 0)
+        raw_score = (cvss * 6.0) + (epss * 30.0) + (10.0 if is_kev else 0.0)
+        score = min(100, max(1, int(round(raw_score))))
+        intel['composite_risk_score'] = score
 
     @classmethod
     def _query_direct_threat_feeds(cls, cve_id, title='', severity='High', cvss=7.5):

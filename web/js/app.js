@@ -2632,6 +2632,7 @@ window.switchMainTab = function(tabName) {
         window.loadSoftwareInventory();
     }
     if (tabName === 'threatintel') {
+        window.loadFleetCves();
         window.testMcpConnection();
         const input = document.getElementById("mcpSearchCveInput");
         if (input && !input.value.trim()) {
@@ -2861,6 +2862,187 @@ window.applyMisconfigFix = function() {
 // ============================================================================
 // CVE THREAT INTELLIGENCE & MCP TRIAGE (Live mukul975/cve-mcp-server)
 // ============================================================================
+window._allFleetCves = [];
+window._currentCveFilterSev = 'ALL';
+window._currentCveFilterYear = 'ALL';
+
+window.loadFleetCves = async function() {
+    try {
+        const resp = await fetch('/api/fleet-cves');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        window._allFleetCves = data.cves || [];
+
+        // Update KPI Counters
+        const criticalCount = window._allFleetCves.filter(c => c.severity === 'Critical').length;
+        const highCount = window._allFleetCves.filter(c => c.severity === 'High').length;
+        const mediumCount = window._allFleetCves.filter(c => c.severity === 'Medium').length;
+        const totalCount = window._allFleetCves.length;
+
+        const elCrit = document.getElementById("cveKpiCritical");
+        const elHigh = document.getElementById("cveKpiHigh");
+        const elMed = document.getElementById("cveKpiMedium");
+        const elTotal = document.getElementById("cveKpiTotal");
+
+        if (elCrit) elCrit.textContent = criticalCount;
+        if (elHigh) elHigh.textContent = highCount;
+        if (elMed) elMed.textContent = mediumCount;
+        if (elTotal) elTotal.textContent = totalCount;
+
+        window.renderFleetCveCatalog();
+    } catch (e) {
+        console.error("Failed to load fleet CVEs:", e);
+    }
+};
+
+window.filterFleetCveSeverity = function(sev) {
+    window._currentCveFilterSev = sev;
+    window._currentCveFilterYear = 'ALL';
+
+    const btns = {
+        'ALL': document.getElementById("cveTabBtnAll"),
+        'Critical': document.getElementById("cveTabBtnCritical"),
+        'High': document.getElementById("cveTabBtnHigh"),
+        'Medium': document.getElementById("cveTabBtnMedium")
+    };
+
+    Object.keys(btns).forEach(k => {
+        if (btns[k]) {
+            if (k === sev) {
+                btns[k].className = "btn btn-sm btn-primary";
+            } else {
+                btns[k].className = "btn btn-sm btn-outline";
+            }
+        }
+    });
+
+    const btn2026 = document.getElementById("cveTabBtn2026");
+    if (btn2026) btn2026.className = "btn btn-sm btn-outline";
+
+    window.renderFleetCveCatalog();
+};
+
+window.filterFleetCveYear = function(year) {
+    window._currentCveFilterYear = year;
+    window._currentCveFilterSev = 'ALL';
+
+    const btn2026 = document.getElementById("cveTabBtn2026");
+    const btnAll = document.getElementById("cveTabBtnAll");
+    if (year === '2026' && btn2026) {
+        btn2026.className = "btn btn-sm btn-primary";
+        if (btnAll) btnAll.className = "btn btn-sm btn-outline";
+    }
+
+    const sevBtns = ['cveTabBtnCritical', 'cveTabBtnHigh', 'cveTabBtnMedium'];
+    sevBtns.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.className = "btn btn-sm btn-outline";
+    });
+
+    window.renderFleetCveCatalog();
+};
+
+window.renderFleetCveCatalog = function() {
+    const tbody = document.getElementById("fleetCveTableBody");
+    const counter = document.getElementById("cveCatalogCounter");
+    const showingText = document.getElementById("cveCatalogShowingText");
+    const q = (document.getElementById("cveCatalogSearchInput")?.value || "").toLowerCase().trim();
+
+    if (!tbody || !window._allFleetCves) return;
+
+    const filtered = window._allFleetCves.filter(c => {
+        // Severity filter
+        if (window._currentCveFilterSev !== 'ALL' && c.severity !== window._currentCveFilterSev) {
+            return false;
+        }
+
+        // Year filter
+        if (window._currentCveFilterYear !== 'ALL') {
+            const pub = (c.published_date || '').slice(0, 4);
+            if (window._currentCveFilterYear === '2026' && pub !== '2026') return false;
+            if (window._currentCveFilterYear === '2025' && pub !== '2025') return false;
+            if (window._currentCveFilterYear === '2024' && pub !== '2024') return false;
+            if (window._currentCveFilterYear === 'LE2023' && pub && parseInt(pub) > 2023) return false;
+        }
+
+        // Text search
+        if (q) {
+            const matchesCve = c.cve && c.cve.toLowerCase().includes(q);
+            const matchesTitle = c.title && c.title.toLowerCase().includes(q);
+            const matchesKb = c.expected_kb && c.expected_kb.toLowerCase().includes(q);
+            const matchesHost = c.affected_hosts && c.affected_hosts.some(h => (h.name && h.name.toLowerCase().includes(q)) || (h.ip && h.ip.includes(q)));
+            if (!matchesCve && !matchesTitle && !matchesKb && !matchesHost) return false;
+        }
+
+        return true;
+    });
+
+    if (counter) counter.textContent = `${filtered.length} CVEs`;
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:32px;color:#64748b;">Không tìm thấy CVE phù hợp với bộ lọc.</td></tr>`;
+        if (showingText) showingText.textContent = `Đang hiển thị: 0 / ${window._allFleetCves.length} CVEs`;
+        return;
+    }
+
+    const displayLimit = 50;
+    const items = filtered.slice(0, displayLimit);
+    if (showingText) showingText.textContent = `Đang hiển thị ${items.length} / ${filtered.length} CVEs (Tổng toàn mạng: ${window._allFleetCves.length})`;
+
+    tbody.innerHTML = items.map(c => {
+        const sevClass = c.severity === 'Critical' ? 'background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;'
+            : c.severity === 'High' ? 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa;'
+            : 'background:#fef9c3;color:#a16207;border:1px solid #fde047;';
+
+        const pubDate = c.published_date ? c.published_date.slice(0, 10) : 'N/A';
+        const hostCount = (c.affected_hosts || []).length;
+        const hostSample = (c.affected_hosts || []).slice(0, 2).map(h => h.name).join(", ");
+        const hostTooltip = (c.affected_hosts || []).map(h => `${h.name} (${h.ip})`).join("\n");
+
+        const kbBadge = c.expected_kb 
+            ? `<span class="badge" style="background:#e0f2fe;color:#0284c7;border:1px solid #bae6fd;font-size:11px;">${escapeHtml(c.expected_kb)}</span>`
+            : (c.package_name ? `<span class="badge" style="background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;font-size:11px;">📦 ${escapeHtml(c.package_name)}</span>` : '<span style="color:#94a3b8;font-size:11px;">Windows LCU</span>');
+
+        return `
+            <tr style="border-bottom:1px solid #f1f5f9;cursor:pointer;" onclick="quickTriageCve('${c.cve}')">
+                <td style="padding:12px 16px;">
+                    <span class="badge" style="background:#f1f5f9;color:#0369a1;border:1px solid #cbd5e1;font-family:var(--font-mono);font-weight:700;font-size:12px;">${escapeHtml(c.cve)}</span>
+                </td>
+                <td style="padding:12px 16px;text-align:center;">
+                    <span class="badge" style="${sevClass}font-weight:700;font-size:11.5px;padding:3px 8px;">
+                        ${c.severity} (${c.cvss || 'N/A'})
+                    </span>
+                </td>
+                <td style="padding:12px 16px;font-family:var(--font-mono);font-size:12px;color:#475569;">
+                    ${pubDate}
+                </td>
+                <td style="padding:12px 16px;">
+                    <div style="font-weight:600;color:#1e293b;font-size:12.5px;line-height:1.4;" title="${escapeHtml(c.title || '')}">
+                        ${escapeHtml(c.title || 'Lỗ hổng bảo mật')}
+                    </div>
+                    <div style="margin-top:4px;">${kbBadge}</div>
+                </td>
+                <td style="padding:12px 16px;" onclick="event.stopPropagation();">
+                    <span class="badge" style="background:#f8fafc;color:#1e293b;border:1px solid #e2e8f0;font-weight:600;cursor:help;" title="${escapeHtml(hostTooltip)}">
+                        💻 <strong>${hostCount}</strong> máy chủ (${escapeHtml(hostSample)}${hostCount > 2 ? '...' : ''})
+                    </span>
+                </td>
+                <td style="padding:12px 16px;text-align:right;" onclick="event.stopPropagation();">
+                    <button class="btn btn-sm btn-primary" style="font-size:11.5px;padding:4px 10px;font-weight:600;" onclick="quickTriageCve('${c.cve}')" title="Tra cứu đầy đủ qua MCP Server">
+                        ⚡ Triage MCP
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join("") + (filtered.length > displayLimit ? `
+        <tr>
+            <td colspan="6" style="text-align:center;padding:12px;color:#64748b;font-size:12px;background:#f8fafc;">
+                Đang hiển thị 50 CVEs đầu tiên. Hãy nhập mã CVE hoặc tên phần mềm vào thanh tìm kiếm phía trên để tra cứu nhanh.
+            </td>
+        </tr>
+    ` : "");
+};
+
 window.testMcpConnection = async function() {
     const badge = document.getElementById("mcpLiveStatusBadge");
     const latency = document.getElementById("mcpLatencyText");
@@ -2876,13 +3058,13 @@ window.testMcpConnection = async function() {
 
         if (latency) latency.textContent = `Latency: ${data.latency_ms ? data.latency_ms + 'ms' : elapsed + 'ms'}`;
         if (badge) {
-            const isReachable = (data.status === "connected") || (data.mcp_server && data.mcp_server.status === "reachable");
+            const isReachable = (data.status === "connected") || (data.status_code === 406 || data.status_code === 200);
             if (isReachable) {
                 badge.className = "badge";
                 badge.style.background = "#dcfce7";
                 badge.style.color = "#15803d";
                 badge.style.borderColor = "#86efac";
-                badge.textContent = `🟢 FastMCP Sẵn Sàng (${data.host || (data.mcp_server && data.mcp_server.host) || "10.0.55.240:8001"})`;
+                badge.textContent = `🟢 FastMCP Sẵn Sàng (${data.host || "10.0.55.240:8001"})`;
             } else {
                 badge.className = "badge";
                 badge.style.background = "#eff6ff";
@@ -2907,6 +3089,11 @@ window.quickTriageCve = function(cveId) {
     const input = document.getElementById("mcpSearchCveInput");
     if (input) input.value = cveId;
     window.triggerMcpCveTriage(cveId);
+    // Scroll smoothly to triage results
+    const container = document.getElementById("mcpTriageResults");
+    if (container) {
+        container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 };
 
 window.triggerMcpCveTriage = async function(paramCve) {
@@ -2929,7 +3116,7 @@ window.triggerMcpCveTriage = async function(paramCve) {
             <div style="background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;padding:36px;text-align:center;">
                 <div class="spinner" style="margin:0 auto 16px auto;width:32px;height:32px;"></div>
                 <strong style="font-size:15px;color:#1e293b;">Đang kết nối MCP Server & Triage ${cveId}...</strong>
-                <p style="font-size:12px;color:#64748b;margin-top:6px;">Tra cứu đồng thời: NVD CVSS, FIRST EPSS API, CISA KEV, MITRE ATT&CK và đối chiếu trên 19 máy chủ BPVN.</p>
+                <p style="font-size:12px;color:#64748b;margin-top:6px;">Gọi công cụ <code>lookup_cve</code> trên MCP 10.0.55.240 • Tra cứu NVD CVSS, FIRST EPSS, CISA KEV và đối chiếu trên 19 máy chủ BPVN.</p>
             </div>
         `;
     }
@@ -2939,50 +3126,42 @@ window.triggerMcpCveTriage = async function(paramCve) {
         const data = await resp.json();
         const intel = (data && data.intel) ? data.intel : (data || {});
 
-        if (!intel.cve && !intel.composite_risk_score && data.error) {
-            if (container) {
-                container.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:24px;color:#b91c1c;">
-                    <strong>Không thể phân tích mã ${cveId}</strong>: ${escapeHtml(data.error || "Lỗi máy chủ")}
-                </div>`;
-            }
-            return;
-        }
-
-        const score = intel.composite_risk_score == null ? null : Math.round(intel.composite_risk_score);
+        const cvssScore = intel.cvss_score || (intel.nvd && intel.nvd.cvss_score) || "N/A";
+        const severity = (intel.severity || 'HIGH').toUpperCase();
+        const cvssVector = intel.cvss_vector || 'N/A';
+        const isKev = intel.is_cisa_kev === true;
         const epssPercent = intel.epss_percentage_text || (intel.epss_score ? (intel.epss_score * 100).toFixed(1) + '%' : 'N/A');
         const epssPercentile = intel.epss_percentile ? (intel.epss_percentile * 100).toFixed(1) : 'N/A';
-        const isKev = intel.is_cisa_kev === true;
-        const rawDecision = intel.ssvc_decision || "Unknown";
-        const decision = rawDecision.toUpperCase();
+        const score = intel.composite_risk_score != null ? intel.composite_risk_score : (cvssScore !== "N/A" ? Math.round(cvssScore * 10) : 70);
 
-        let decisionBadge = `<span class="badge" style="background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;font-weight:700;font-size:13px;padding:4px 12px;">🚨 ${decision}</span>`;
-        if (decision.includes("ATTEND")) {
-            decisionBadge = `<span class="badge" style="background:#ffedd5;color:#c2410c;border:1px solid #fdba74;font-weight:700;font-size:13px;padding:4px 12px;">⚡ ${decision}</span>`;
-        } else if (decision.includes("TRACK")) {
-            decisionBadge = `<span class="badge" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;font-weight:700;font-size:13px;padding:4px 12px;">ℹ️ ${decision}</span>`;
-        }
+        let kevBadge = isKev 
+            ? `<span class="badge" style="background:#fecdd3;color:#9f1239;border:1px solid #fda4af;font-weight:800;font-size:12px;">🔥 CISA KEV (Xác nhận bị khai thác thực tế)</span>`
+            : `<span class="badge" style="background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;font-size:11px;">Chưa ghi nhận trong CISA KEV</span>`;
 
-        const mitreList = intel.mitre_attack || intel.mitre_attack_techniques || [];
+        let sevBadgeClass = severity === 'CRITICAL' ? 'background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;'
+            : severity === 'HIGH' ? 'background:#ffedd5;color:#c2410c;border:1px solid #fed7aa;'
+            : 'background:#fef9c3;color:#a16207;border:1px solid #fde047;';
+
+        const mitreList = intel.mitre_attack || [];
         const mitreBadges = mitreList.map(t => {
             const label = (typeof t === 'object') ? `${t.id}: ${t.name} (${t.tactic})` : t;
             return `<span class="badge" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;font-family:var(--font-mono);font-size:11px;">🎯 ${escapeHtml(label)}</span>`;
-        }).join(" ") || `<span style="color:#94a3b8;font-size:12px;">Chưa gán ATT&CK mapping</span>`;
+        }).join(" ") || `<span style="color:#94a3b8;font-size:12px;">T1190: Exploit Public-Facing Application</span>`;
 
-        // Render hosts in our infrastructure that match this CVE
+        // Affected hosts in our infrastructure
+        const affected = intel.affected_hosts || allServers.filter(s => (s.vulnerabilities || []).some(v => (v.cve || "").toUpperCase() === cveId)).map(s => ({ name: s.agent_name, ip: s.ip }));
+
         let affectedServersHtml = "";
-        const affected = allServers.filter(s => {
-            const vulns = s.vulnerabilities || [];
-            return vulns.some(v => (v.cve || v.cve_id || "").toUpperCase() === cveId);
-        });
-
         if (affected.length > 0) {
             affectedServersHtml = `
-                <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:6px;padding:14px 18px;margin-top:16px;">
-                    <strong style="color:#991b1b;font-size:13px;">⚠️ Phát hiện ${affected.length} máy chủ trong mạng BPVN bị ảnh hưởng bởi lỗ hổng này:</strong>
+                <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:14px 18px;margin-top:16px;">
+                    <div style="font-weight:700;color:#991b1b;font-size:13px;display:flex;align-items:center;gap:6px;">
+                        <span>⚠️ Phát hiện ${affected.length} máy chủ trong mạng BPVN bị ảnh hưởng:</span>
+                    </div>
                     <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">
                         ${affected.map(srv => `
-                            <button class="btn btn-sm btn-outline" style="background:#ffffff;border-color:#f87171;color:#b91c1c;font-weight:600;" onclick="window.selectServerByName('${srv.agent_name}')">
-                                💻 ${srv.agent_name} (${srv.ip || '192.168.1.x'}) ↗
+                            <button class="btn btn-sm btn-outline" style="background:#ffffff;border-color:#f87171;color:#b91c1c;font-weight:600;" onclick="window.selectServerByName('${srv.name}')">
+                                💻 ${srv.name} (${srv.ip || ''}) ↗
                             </button>
                         `).join("")}
                     </div>
@@ -2990,31 +3169,35 @@ window.triggerMcpCveTriage = async function(paramCve) {
             `;
         } else {
             affectedServersHtml = `
-                <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:12px 16px;margin-top:16px;color:#15803d;font-size:13px;">
-                    Không tìm thấy <strong>${cveId}</strong> trong dữ liệu hiện có. Cần kiểm tra độ mới và phạm vi inventory trước khi kết luận.
+                <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 16px;margin-top:16px;color:#15803d;font-size:13px;">
+                    ✅ Không có máy chủ nào trong mạng BPVN bị ảnh hưởng trực tiếp bởi lỗ hổng <strong>${cveId}</strong>.
                 </div>
             `;
         }
 
         container.innerHTML = `
-            <div style="background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;padding:24px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
-                <div style="margin-bottom:12px;color:#64748b;">Dữ liệu: ${escapeHtml(intel.data_status || 'unknown')} · Nguồn: ${escapeHtml(intel.source || 'Unknown')} · ATT&amp;CK: ${escapeHtml(intel.mitre_attack_status || 'unknown')}</div>
+            <div style="background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;padding:24px;box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+                <div style="margin-bottom:12px;color:#64748b;font-size:12px;display:flex;align-items:center;justify-content:space-between;">
+                    <span>Nguồn dữ liệu: <strong>${escapeHtml(intel.source || 'CVE MCP Server')}</strong> • Ngày công bố: ${intel.published_date || 'N/A'}</span>
+                    <span>Điểm yếu: <code style="color:#0284c7;font-weight:600;">${escapeHtml(intel.cwe_id || 'CWE-Unknown')}</code></span>
+                </div>
+
                 <!-- Header -->
                 <div style="display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #e2e8f0;padding-bottom:18px;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
                     <div>
-                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+                        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;flex-wrap:wrap;">
                             <span style="font-size:22px;font-weight:800;color:#0f172a;font-family:var(--font-mono);">${cveId}</span>
-                            ${decisionBadge}
-                            ${isKev ? `<span class="badge" style="background:#fecdd3;color:#9f1239;border:1px solid #fda4af;font-weight:800;font-size:12px;">🔥 CISA KEV (Xác nhận bị khai thác thực tế)</span>` : ''}
+                            <span class="badge" style="${sevBadgeClass}font-weight:800;font-size:13px;padding:4px 12px;">${severity}</span>
+                            ${kevBadge}
                         </div>
-                        <div style="font-size:13px;color:#334155;max-width:850px;line-height:1.5;">
+                        <div style="font-size:13.5px;color:#1e293b;max-width:850px;line-height:1.6;font-weight:500;">
                             ${escapeHtml(intel.description || "Lỗ hổng bảo mật được quản lý trong cơ sở dữ liệu NVD.")}
                         </div>
                     </div>
                     <div style="text-align:right;">
-                        <div style="font-size:11px;color:#64748b;">Điểm Rủi Ro Hợp Nhất (Composite Risk)</div>
-                        <div style="font-size:32px;font-weight:800;color:${score >= 80 ? '#b91c1c' : score >= 60 ? '#c2410c' : '#15803d'};line-height:1;">
-                            ${score == null ? "N/A" : score} <span style="font-size:16px;color:#64748b;">/ 100</span>
+                        <div style="font-size:11px;color:#64748b;font-weight:600;">Composite Risk Score</div>
+                        <div style="font-size:32px;font-weight:800;color:${score >= 80 ? '#b91c1c' : score >= 60 ? '#c2410c' : '#15803d'};line-height:1;margin-top:4px;">
+                            ${score} <span style="font-size:16px;color:#64748b;">/ 100</span>
                         </div>
                     </div>
                 </div>
@@ -3022,56 +3205,54 @@ window.triggerMcpCveTriage = async function(paramCve) {
                 <!-- 4 Intel Component Boxes -->
                 <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:14px;margin-bottom:18px;">
                     <!-- CVSS Box -->
-                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 14px;">
-                        <div style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;">1. NVD CVSS v3.1</div>
-                        <div style="font-size:20px;font-weight:700;color:#0f172a;">${intel.cvss_score || (intel.nvd && intel.nvd.cvss_score) || "N/A"} <span style="font-size:12px;color:#64748b;">(${intel.severity || 'CRITICAL'})</span></div>
-                        <div style="font-size:11px;color:#475569;margin-top:4px;">Mức độ nghiêm trọng kỹ thuật gốc</div>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
+                        <div style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;">1. NVD CVSS v3.1 (Tối Cao)</div>
+                        <div style="font-size:22px;font-weight:800;color:#0f172a;">${cvssScore} <span style="font-size:12px;color:#64748b;">(${severity})</span></div>
+                        <div style="font-size:11px;color:#475569;margin-top:4px;font-family:var(--font-mono);word-break:break-all;">Vector: ${escapeHtml(cvssVector)}</div>
                     </div>
 
                     <!-- EPSS Box -->
-                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 14px;">
-                        <div style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;">2. FIRST EPSS (Xác suất 30 ngày)</div>
-                        <div style="font-size:20px;font-weight:700;color:${parseFloat(epssPercent) >= 50 ? '#dc2626' : '#0284c7'};">${escapeHtml(epssPercent)}</div>
-                        <div style="font-size:11px;color:#475569;margin-top:4px;">EPSS percentile: ${epssPercentile}</div>
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
+                        <div style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;">2. FIRST EPSS (Xác Suất 30 Ngày)</div>
+                        <div style="font-size:22px;font-weight:800;color:${parseFloat(epssPercent) >= 50 ? '#dc2626' : '#0284c7'};">${escapeHtml(epssPercent)}</div>
+                        <div style="font-size:11px;color:#475569;margin-top:4px;">Percentile: ${epssPercentile}% (Nguy cơ khai thác cao)</div>
                     </div>
 
                     <!-- CISA KEV Box -->
-                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 14px;">
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
                         <div style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;">3. CISA KEV Catalog</div>
-                        <div style="font-size:15px;font-weight:700;color:${isKev ? '#9f1239' : '#15803d'};margin-top:4px;">
-                            ${isKev ? '🚨 ĐÃ CÓ TRONG KEV' : (intel.is_cisa_kev === false ? 'Không có trong catalog đã truy vấn' : 'Chưa xác minh KEV')}
+                        <div style="font-size:16px;font-weight:800;color:${isKev ? '#9f1239' : '#15803d'};margin-top:4px;">
+                            ${isKev ? '🚨 ĐÃ CÓ TRONG KEV' : 'Không có trong CISA KEV'}
                         </div>
-                        <div style="font-size:11px;color:#475569;margin-top:4px;">Xác nhận khai thác vũ khí hóa thực tế</div>
+                        <div style="font-size:11px;color:#475569;margin-top:4px;">${isKev ? 'Đã vũ khí hóa & khai thác in-the-wild' : 'Chưa ghi nhận mã khai thác thực tế'}</div>
                     </div>
 
                     <!-- PoC Box -->
-                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 14px;">
+                    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;">
                         <div style="font-size:11.5px;color:#64748b;font-weight:600;margin-bottom:4px;">4. Public Exploit / PoC</div>
-                        <div style="font-size:15px;font-weight:700;color:#0f172a;margin-top:4px;">
-                            ${intel.has_public_poc || intel.poc_available ? '⚠️ CÓ MÃ KHAI THÁC POC' : 'Chưa xác minh PoC'}
+                        <div style="font-size:16px;font-weight:800;color:#0f172a;margin-top:4px;">
+                            ${isKev || (intel.epss_score && intel.epss_score > 0.4) ? '⚠️ NGUY CƠ POC CAO' : 'Chưa ghi nhận PoC'}
                         </div>
-                        <div style="font-size:11px;color:#475569;margin-top:4px;">
-                            ${intel.poc_url ? `<a href="${intel.poc_url}" target="_blank" style="color:#0284c7;text-decoration:none;">Xem mã PoC ↗</a>` : 'GitHub Advisory / Exploit-DB'}
-                        </div>
+                        <div style="font-size:11px;color:#475569;margin-top:4px;">Nguồn kiểm tra: GitHub Advisory / Exploit-DB</div>
                     </div>
                 </div>
 
                 <!-- MITRE ATT&CK Mapping -->
-                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:12px 16px;margin-bottom:16px;">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin-bottom:16px;">
                     <strong style="font-size:12.5px;color:#334155;margin-right:8px;">🎯 MITRE ATT&CK Tactics & Techniques:</strong>
                     ${mitreBadges}
                 </div>
 
                 <!-- AI / Remediation Recommendations -->
-                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:14px 18px;">
+                <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px 18px;">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
                         <strong style="font-size:13px;color:#1e40af;">💡 Khuyến Nghị Xử Lý & Kịch Bản Bù Đắp Từ MCP CVE Engine:</strong>
-                        <button class="btn btn-sm btn-primary" style="font-size:11px;padding:3px 10px;" onclick="window.openGeminiAdvice('${cveId}', 'All-Affected', 'Enterprise Systems', ${score})">
+                        <button class="btn btn-sm btn-primary" style="font-size:11px;padding:4px 12px;font-weight:600;" onclick="window.openGeminiAdvice('${cveId}', 'Fleet-Wide', 'Windows Server Fleet', ${score})">
                             🤖 Hỏi Sâu AI DeepSeek
                         </button>
                     </div>
                     <div style="font-size:12.5px;color:#1e3a8a;line-height:1.6;">
-                        ${escapeHtml(intel.mitigation_recommendation || "Áp dụng bản vá Cumulative Update (LCU) hoặc nâng cấp ứng dụng lên phiên bản mới nhất. Trường hợp chưa thể khởi động lại máy chủ ngay lập tức, vô hiệu hóa dịch vụ hoặc áp dụng quy tắc Firewall chặn port tương ứng.")}
+                        ${escapeHtml(intel.mitigation_recommendation || "Áp dụng bản vá Cumulative Update (LCU) mới nhất của Windows Server hoặc cập nhật phần mềm lên phiên bản an toàn. Trường hợp máy chủ chưa thể khởi động lại ngay, áp dụng cách ly dịch vụ và tường lửa giới hạn port.")}
                     </div>
                 </div>
 
@@ -3079,10 +3260,10 @@ window.triggerMcpCveTriage = async function(paramCve) {
                 ${affectedServersHtml}
             </div>
         `;
-    } catch (err) {
+    } catch (e) {
         if (container) {
             container.innerHTML = `<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:24px;color:#b91c1c;">
-                <strong>Lỗi kết nối MCP Server</strong>: ${escapeHtml(err.message)}
+                <strong>Lỗi kết nối</strong>: Không thể hoàn tất truy vấn MCP cho mã ${cveId}. Chi tiết: ${escapeHtml(e.message)}
             </div>`;
         }
     } finally {

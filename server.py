@@ -234,6 +234,43 @@ class PatchManagementHttpHandler(SimpleHTTPRequestHandler):
             self._send_json(200, intel)
             return
 
+        elif path == "/api/fleet-cves":
+            audit = get_or_create_audit()
+            servers = audit.get("servers", [])
+            cve_map = {}
+            for s in servers:
+                name = s.get("agent_name", s.get("agent_id"))
+                ip = s.get("ip", "")
+                aid = s.get("agent_id")
+                for v in s.get("vulnerabilities", []):
+                    cve = v.get("cve")
+                    if not cve:
+                        continue
+                    if cve not in cve_map:
+                        cve_map[cve] = {
+                            "cve": cve,
+                            "title": v.get("title", ""),
+                            "severity": (v.get("severity") or "Medium").capitalize(),
+                            "cvss": float(v.get("cvss", 0.0) or 0.0),
+                            "published_date": v.get("published_date", ""),
+                            "detected_date": v.get("detected_date", ""),
+                            "expected_kb": v.get("expected_kb", ""),
+                            "package_name": v.get("package_name", ""),
+                            "is_os_vuln": v.get("is_os_vuln", True),
+                            "status": v.get("status", ""),
+                            "affected_hosts": []
+                        }
+                    cve_map[cve]["affected_hosts"].append({"name": name, "ip": ip, "agent_id": aid})
+
+            cve_list = list(cve_map.values())
+            # Default sort: published_date descending, then cvss descending
+            cve_list.sort(key=lambda x: (x.get("published_date") or "", x.get("cvss") or 0.0), reverse=True)
+            self._send_json(200, {
+                "total_unique_cves": len(cve_list),
+                "cves": cve_list
+            })
+            return
+
         elif path.startswith("/api/server/"):
             agent_id = path.replace("/api/server/", "").strip()
             audit = get_or_create_audit()
